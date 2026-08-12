@@ -44,7 +44,7 @@ _CHUNK_FIELDS = (
     "accepted_action_index",
     "action_indices",
 )
-_MERGE_FIELDS = (
+_DREAMZERO_MERGE_FIELDS = (
     "observation_id",
     "chunk_id",
     "base_action_index",
@@ -58,7 +58,6 @@ _MERGE_FIELDS = (
     "resolved_steps",
     "rebase_offset_steps",
     "first_executable_source_offset",
-    "max_abs_position_revision",
 )
 
 
@@ -125,7 +124,9 @@ def telemetry_row(
         "actions_remaining": result.actions_remaining,
         "timing": [_event_fields(event, _TIMING_FIELDS) for event in result.timing_events],
         "chunks": [_event_fields(event, _CHUNK_FIELDS) for event in result.chunk_events],
-        "merges": [_event_fields(event, _MERGE_FIELDS) for event in result.merge_events],
+        "merges": [
+            _event_fields(event, _DREAMZERO_MERGE_FIELDS) for event in result.merge_events
+        ],
         "runtime": dict(runtime),
     }
     return cast(dict[str, object], _clean_json(row))
@@ -172,9 +173,12 @@ def write_trial_sidecar(
     epoch: int,
 ) -> str:
     """Atomically persist strict JSONL and return its Inspect-log-relative pointer."""
-    suffix = f"-e{epoch}.jsonl"
-    scene = _safe_component(scene_id, max_length=max(1, 120 - len(suffix)))
-    relative = Path("dropbear", _safe_component(run_id), f"{scene}{suffix}")
+    extension = ".jsonl"
+    stem = _safe_component(
+        f"{scene_id}-e{epoch}",
+        max_length=120 - len(extension),
+    )
+    relative = Path("dropbear", _safe_component(run_id), f"{stem}{extension}")
     target = Path(log_dir) / relative
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")

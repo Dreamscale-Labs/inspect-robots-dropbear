@@ -97,6 +97,7 @@ def test_telemetry_row_is_joinable_bounded_and_strict_json() -> None:
     assert "server_queue_ms" not in row["timing"][0]
     assert "client_overhead_ms" not in row["timing"][0]
     assert "actions" not in row["chunks"][0]
+    assert "max_abs_position_revision" not in row["merges"][0]
     for forbidden in ('"action"', '"actions"', '"image"', '"camera"'):
         assert forbidden not in encoded
 
@@ -233,5 +234,22 @@ def test_write_trial_sidecar_sanitizes_and_caps_each_path_component(tmp_path: Pa
     assert len(run_component) <= 120
     assert len(file_component) <= 120
     assert re.fullmatch(r"[A-Za-z0-9._-]+", run_component)
+    assert re.fullmatch(r"[A-Za-z0-9._-]+", file_component)
+    assert (tmp_path / pointer).is_file()
+
+
+def test_write_trial_sidecar_caps_complete_filename_with_huge_epoch(tmp_path: Path) -> None:
+    """Catch an epoch suffix bypassing the complete path-component cap."""
+    pointer = write_trial_sidecar(
+        [{"schema_version": 1}],
+        log_dir=tmp_path,
+        run_id="run",
+        scene_id="scene",
+        epoch=10**500,
+    )
+
+    file_component = pointer.rsplit("/", 1)[1]
+    assert len(file_component) <= 120
+    assert file_component.endswith(".jsonl")
     assert re.fullmatch(r"[A-Za-z0-9._-]+", file_component)
     assert (tmp_path / pointer).is_file()
