@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import importlib.metadata
 import json
 import math
@@ -164,6 +165,18 @@ def _safe_component(value: object, *, max_length: int = 120) -> str:
     return (sanitized or "unknown")[:max_length]
 
 
+def _epoch_suffix(epoch: int) -> str:
+    if epoch.bit_length() <= 106:
+        return f"-e{epoch}"
+    magnitude = abs(epoch)
+    payload = (b"-" if epoch < 0 else b"+") + magnitude.to_bytes(
+        max(1, (magnitude.bit_length() + 7) // 8),
+        byteorder="big",
+    )
+    digest = hashlib.sha256(payload).hexdigest()[:16]
+    return f"-eh{digest}"
+
+
 def write_trial_sidecar(
     rows: Sequence[Mapping[str, object]],
     *,
@@ -174,11 +187,16 @@ def write_trial_sidecar(
 ) -> str:
     """Atomically persist strict JSONL and return its Inspect-log-relative pointer."""
     extension = ".jsonl"
-    stem = _safe_component(
-        f"{scene_id}-e{epoch}",
-        max_length=120 - len(extension),
+    epoch_suffix = _epoch_suffix(epoch)
+    scene = _safe_component(
+        scene_id,
+        max_length=120 - len(epoch_suffix) - len(extension),
     )
-    relative = Path("dropbear", _safe_component(run_id), f"{stem}{extension}")
+    relative = Path(
+        "dropbear",
+        _safe_component(run_id),
+        f"{scene}{epoch_suffix}{extension}",
+    )
     target = Path(log_dir) / relative
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")

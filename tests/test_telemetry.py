@@ -240,16 +240,61 @@ def test_write_trial_sidecar_sanitizes_and_caps_each_path_component(tmp_path: Pa
 
 def test_write_trial_sidecar_caps_complete_filename_with_huge_epoch(tmp_path: Path) -> None:
     """Catch an epoch suffix bypassing the complete path-component cap."""
+    huge_epoch = 10**500
     pointer = write_trial_sidecar(
         [{"schema_version": 1}],
         log_dir=tmp_path,
         run_id="run",
         scene_id="scene",
-        epoch=10**500,
+        epoch=huge_epoch,
+    )
+    other_pointer = write_trial_sidecar(
+        [{"schema_version": 1}],
+        log_dir=tmp_path,
+        run_id="run",
+        scene_id="scene",
+        epoch=huge_epoch + 1,
     )
 
     file_component = pointer.rsplit("/", 1)[1]
+    other_component = other_pointer.rsplit("/", 1)[1]
+    assert pointer != other_pointer
     assert len(file_component) <= 120
-    assert file_component.endswith(".jsonl")
+    assert len(other_component) <= 120
+    assert re.fullmatch(r"scene-eh[0-9a-f]{16}\.jsonl", file_component)
+    assert re.fullmatch(r"scene-eh[0-9a-f]{16}\.jsonl", other_component)
     assert re.fullmatch(r"[A-Za-z0-9._-]+", file_component)
     assert (tmp_path / pointer).is_file()
+    assert (tmp_path / other_pointer).is_file()
+
+
+def test_write_trial_sidecar_reserves_distinct_epoch_suffix_for_long_scene(
+    tmp_path: Path,
+) -> None:
+    """Catch long scene truncation causing distinct trial epochs to overwrite one path."""
+    scene_id = "scene-" + "x" * 300
+
+    first = write_trial_sidecar(
+        [{"epoch": 7}],
+        log_dir=tmp_path,
+        run_id="run",
+        scene_id=scene_id,
+        epoch=7,
+    )
+    second = write_trial_sidecar(
+        [{"epoch": 8}],
+        log_dir=tmp_path,
+        run_id="run",
+        scene_id=scene_id,
+        epoch=8,
+    )
+
+    assert first != second
+    first_name = first.rsplit("/", 1)[1]
+    second_name = second.rsplit("/", 1)[1]
+    assert first_name.endswith("-e7.jsonl")
+    assert second_name.endswith("-e8.jsonl")
+    assert len(first_name) <= 120
+    assert len(second_name) <= 120
+    assert (tmp_path / first).is_file()
+    assert (tmp_path / second).is_file()
