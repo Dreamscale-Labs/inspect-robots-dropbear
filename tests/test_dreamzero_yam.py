@@ -73,7 +73,7 @@ def test_to_dreamzero_yam_names_each_missing_required_observation_key(
         to_dreamzero_yam(observation)
 
 
-@pytest.mark.parametrize("value", [True, -0.1, float("nan"), float("inf")])
+@pytest.mark.parametrize("value", [True, np.bool_(True), -0.1, float("nan"), float("inf")])
 def test_to_dreamzero_yam_rejects_invalid_camera_time(value: object) -> None:
     """Catch malformed wall-clock seconds before they are converted to nanoseconds."""
     observation = valid_observation()

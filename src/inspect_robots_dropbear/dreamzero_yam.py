@@ -17,7 +17,7 @@ dropbear: Any = _dropbear
 
 def _seconds_to_ns(value: object, *, camera: str) -> int:
     """Convert a finite, nonnegative capture time to integer nanoseconds."""
-    if isinstance(value, bool):
+    if isinstance(value, (bool, np.bool_)):
         raise ValueError(f"image_times[{camera!r}] must be finite monotonic seconds")
     try:
         seconds = float(cast(Any, value))
