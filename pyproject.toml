@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "inspect-robots-dropbear"
+version = "0.1.0"
+description = "Inspect Robots policy adapter for Dropbear-hosted DreamZero-YAM"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "dropbear[dreamzero]==0.1.0a5",
+  "inspect-robots @ git+https://github.com/robocurve/inspect-robots.git@3990c6f0e4f7560602aa209066029424ea964261",
+  "numpy>=2.0,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "ruff>=0.7", "mypy>=1.11"]
+
+[project.entry-points."inspect_robots.policies"]
+dropbear = "inspect_robots_dropbear:dropbear_policy"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/inspect_robots_dropbear"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.mypy]
+strict = true
