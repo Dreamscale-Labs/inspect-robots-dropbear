@@ -7,6 +7,12 @@ from inspect_robots.types import Observation
 from inspect_robots_dropbear.dreamzero_yam import to_dreamzero_yam
 
 
+class RefusesArrayConversion:
+    def __array__(self, *args: object, **kwargs: object) -> np.ndarray:
+        del args, kwargs
+        raise RuntimeError("custom conversion detail")
+
+
 def frame(value: int) -> np.ndarray:
     return np.full((2, 3, 3), value, dtype=np.uint8)
 
@@ -120,4 +126,26 @@ def test_to_dreamzero_yam_rejects_invalid_joint_positions(joint_pos: np.ndarray)
     )
 
     with pytest.raises(ValueError, match="joint_pos must contain exactly 14 finite values"):
+        to_dreamzero_yam(observation)
+
+
+@pytest.mark.parametrize(
+    "joint_pos",
+    [
+        [np.zeros((2, 2)), np.zeros((2, 3))],
+        RefusesArrayConversion(),
+    ],
+)
+def test_to_dreamzero_yam_normalizes_joint_conversion_failures(joint_pos: object) -> None:
+    """Catch NumPy or custom conversion details escaping the adapter validation boundary."""
+    observation = valid_observation()
+    observation = Observation(
+        images=observation.images,
+        state={"joint_pos": joint_pos},
+        image_times=observation.image_times,
+    )
+
+    with pytest.raises(
+        ValueError, match=r"^joint_pos must contain exactly 14 finite values$"
+    ):
         to_dreamzero_yam(observation)

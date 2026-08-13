@@ -6,6 +6,8 @@ opens one lazy Dropbear connection, and later trials reuse that connection while
 logical episodes.
 
 This package is intentionally private and has no public license declaration yet.
+It supports Python 3.11 through 3.13 and requires the immutable
+`dropbear[dreamzero]==0.1.0a5` SDK release.
 
 ## Install and discover
 
@@ -13,6 +15,12 @@ Install the immutable private Git release after DreamScale grants repository rea
 
 ```bash
 uv add "inspect-robots-dropbear @ git+ssh://git@github.com/Dreamscale-Labs/inspect-robots-dropbear.git@v0.1.0"
+```
+
+Confirm the expected Dropbear SDK is active before starting an evaluation:
+
+```bash
+python -c 'import dropbear; assert dropbear.__version__ == "0.1.0a5"'
 ```
 
 Verify that the entry point is available without opening a cloud session:

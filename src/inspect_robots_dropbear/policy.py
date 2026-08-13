@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 import dropbear as _dropbear  # type: ignore[import-untyped]
 import numpy as np
-from dropbear import RegionPreference, RunStrategy  # type: ignore[import-untyped]
+from dropbear import RegionPreference, RunStrategy
 from inspect_robots.policy import PolicyBase, PolicyConfig, PolicyInfo
 from inspect_robots.rollout import TrialRecord
 from inspect_robots.scene import Scene

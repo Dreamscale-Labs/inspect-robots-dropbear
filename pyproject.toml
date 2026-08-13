@@ -6,9 +6,9 @@ build-backend = "hatchling.build"
 name = "inspect-robots-dropbear"
 version = "0.1.0"
 description = "Inspect Robots policy adapter for Dropbear-hosted DreamZero-YAM"
-requires-python = ">=3.11,<3.15"
+requires-python = ">=3.11,<3.14"
 dependencies = [
-  "dropbear[dreamzero]==0.1.0a4",
+  "dropbear[dreamzero]==0.1.0a5",
   "inspect-robots @ git+https://github.com/robocurve/inspect-robots.git@3990c6f0e4f7560602aa209066029424ea964261",
   "numpy>=2.0,<3",
 ]

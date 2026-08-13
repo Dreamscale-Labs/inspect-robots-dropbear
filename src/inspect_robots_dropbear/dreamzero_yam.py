@@ -8,6 +8,7 @@ from typing import Any, cast
 
 import dropbear as _dropbear  # type: ignore[import-untyped]
 import numpy as np
+import numpy.typing as npt
 from dropbear.dreamzero_yam import DreamZeroYamObservation  # type: ignore[import-untyped]
 from inspect_robots.types import Observation
 
@@ -35,14 +36,17 @@ def _mapping_value(mapping: Mapping[str, object], key: str, *, field: str) -> ob
         raise ValueError(f"missing {field}[{key!r}]") from error
 
 
-def _joint_positions(observation: Observation) -> np.ndarray:
+def _joint_positions(observation: Observation) -> npt.NDArray[np.float64]:
     raw = _mapping_value(observation.state, "joint_pos", field="state")
-    raw_values = np.asarray(raw, dtype=object).reshape(-1)
+    try:
+        raw_values = np.asarray(raw, dtype=object).reshape(-1)
+    except Exception as error:
+        raise ValueError("joint_pos must contain exactly 14 finite values") from error
     if any(isinstance(value, (bool, np.bool_)) for value in raw_values):
         raise ValueError("joint_pos must contain exactly 14 finite values")
     try:
         joints = np.asarray(raw, dtype=np.float64).reshape(-1)
-    except (TypeError, ValueError) as error:
+    except Exception as error:
         raise ValueError("joint_pos must contain exactly 14 finite values") from error
     if joints.shape != (14,) or not np.isfinite(joints).all():
         raise ValueError("joint_pos must contain exactly 14 finite values")
