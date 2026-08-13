@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import atexit
+import math
 import threading
 import time
-from numbers import Integral
+from collections.abc import Callable
+from numbers import Integral, Real
 from typing import Any, Literal
 
 import dropbear as _dropbear  # type: ignore[import-untyped]
@@ -56,21 +58,38 @@ YAM_DIM_LABELS = (
 class DropbearPolicy(PolicyBase):
     """Describe DreamZero-YAM without reading config or opening a session."""
 
+    region: RegionPreference
+    sampling: Literal["upstream_eval", "async_8"]
+    startup_timeout_s: float
+    timeout_s: float
+    _episode_active: bool
+    _closed: bool
+    _atexit_handler: Callable[[], None]
+
     def __init__(
         self,
         *,
         model: str = "dreamzero-yam",
         region: RegionPreference = "nearest",
         sampling: Literal["upstream_eval", "async_8"] = "async_8",
+        startup_timeout_s: float = 1800.0,
         timeout_s: float = 60.0,
     ) -> None:
         if model != "dreamzero-yam":
             raise ValueError("only dreamzero-yam is supported")
         if sampling not in {"upstream_eval", "async_8"}:
             raise ValueError("sampling must be upstream_eval or async_8")
+        if (
+            isinstance(startup_timeout_s, bool)
+            or not isinstance(startup_timeout_s, Real)
+            or not math.isfinite(startup_timeout_s)
+            or startup_timeout_s <= 0
+        ):
+            raise ValueError("startup_timeout_s must be a finite positive number")
         self.model = model
         self.region = region
         self.sampling = sampling
+        self.startup_timeout_s = float(startup_timeout_s)
         self.timeout_s = timeout_s
         self._remote: Any | None = None
         self._episode_active = False
@@ -112,6 +131,7 @@ class DropbearPolicy(PolicyBase):
                 "dreamzero-yam",
                 region=self.region,
                 on_progress=None,
+                startup_timeout=self.startup_timeout_s,
             )
         return self._remote
 

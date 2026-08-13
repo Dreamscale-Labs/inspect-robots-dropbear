@@ -7,20 +7,20 @@ logical episodes.
 
 This package is intentionally private and has no public license declaration yet.
 It supports Python 3.11 through 3.13 and requires the immutable
-`dropbear[dreamzero]==0.1.0a5` SDK release.
+`dropbear[dreamzero]==0.1.0a6` SDK release.
 
 ## Install and discover
 
 Install the immutable private Git release after DreamScale grants repository read access:
 
 ```bash
-uv add "inspect-robots-dropbear @ git+ssh://git@github.com/Dreamscale-Labs/inspect-robots-dropbear.git@v0.1.0"
+uv add "inspect-robots-dropbear @ git+ssh://git@github.com/Dreamscale-Labs/inspect-robots-dropbear.git@v0.1.1"
 ```
 
 Confirm the expected Dropbear SDK is active before starting an evaluation:
 
 ```bash
-python -c 'import dropbear; assert dropbear.__version__ == "0.1.0a5"'
+python -c 'import dropbear; assert dropbear.__version__ == "0.1.0a6"'
 ```
 
 Verify that the entry point is available without opening a cloud session:
@@ -39,6 +39,11 @@ command:
 
 Use `sampling=upstream_eval` only for the agreed open-loop dataset evaluation. The adapter exposes
 no custom scheduling, buffering, horizon, or smoothing knobs.
+
+The first connection has a 1,800-second startup budget by default so DreamZero-YAM can finish
+loading and warmup. Set `-P startup_timeout_s=<seconds>` to another finite positive value when an
+approved target needs a different startup budget. This does not change `timeout_s`, the existing
+per-step action deadline, which remains 60 seconds by default.
 
 ## Observation and simulator contract
 
