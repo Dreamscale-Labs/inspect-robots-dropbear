@@ -45,6 +45,7 @@ class FakeRemotePolicy:
         self.close_calls = 0
         self.step_result = step_result
         self.step_indices: list[int] = []
+        self.step_timeouts: list[float] = []
         self.begin_error = begin_error
         self.end_error = end_error
 
@@ -62,8 +63,9 @@ class FakeRemotePolicy:
         self.close_calls += 1
 
     def step(self, observation: object, *, action_index: int, timeout_s: float) -> PolicyStepResult:
-        del observation, timeout_s
+        del observation
         self.step_indices.append(action_index)
+        self.step_timeouts.append(timeout_s)
         assert self.step_result is not None
         return self.step_result
 
@@ -121,12 +123,90 @@ def test_factory_rejects_unknown_sampling_mode_offline() -> None:
         dropbear_policy(model="dreamzero-yam", sampling="custom")
 
 
+def test_reset_passes_default_startup_timeout_to_dropbear_connect(monkeypatch) -> None:
+    """Catch restoring the SDK's shorter default startup deadline for DreamZero-YAM."""
+    remote = FakeRemotePolicy()
+    startup_timeouts: list[float] = []
+
+    def connect(
+        _model: str,
+        *,
+        region: str,
+        on_progress: object,
+        startup_timeout: float,
+    ) -> FakeRemotePolicy:
+        del region, on_progress
+        startup_timeouts.append(startup_timeout)
+        return remote
+
+    monkeypatch.setattr("inspect_robots_dropbear.policy.dropbear.connect", connect)
+    policy = dropbear_policy(model="dreamzero-yam")
+
+    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
+
+    assert startup_timeouts == [1800.0]
+
+
+def test_custom_startup_timeout_does_not_change_per_step_timeout(monkeypatch) -> None:
+    """Catch startup and action-step deadlines being conflated at the SDK boundary."""
+    remote = FakeRemotePolicy(step_result=step_result())
+    startup_timeouts: list[float] = []
+
+    def connect(
+        _model: str,
+        *,
+        region: str,
+        on_progress: object,
+        startup_timeout: float,
+    ) -> FakeRemotePolicy:
+        del region, on_progress
+        startup_timeouts.append(startup_timeout)
+        return remote
+
+    monkeypatch.setattr("inspect_robots_dropbear.policy.dropbear.connect", connect)
+    policy = dropbear_policy(
+        model="dreamzero-yam",
+        startup_timeout_s=2400.0,
+        timeout_s=17.0,
+    )
+
+    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
+    policy.act(inspect_observation())
+
+    assert startup_timeouts == [2400.0]
+    assert remote.step_timeouts == [17.0]
+
+
+@pytest.mark.parametrize(
+    "startup_timeout_s",
+    [True, False, None, "1800", 0, -1, float("nan"), float("inf"), float("-inf")],
+)
+def test_factory_rejects_invalid_startup_timeout_before_connect(
+    monkeypatch, startup_timeout_s
+) -> None:
+    """Catch malformed startup budgets reaching config/session side effects."""
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        lambda *_args, **_kwargs: pytest.fail("invalid timeout opened a connection"),
+    )
+
+    with pytest.raises(ValueError, match="startup_timeout_s must be a finite positive number"):
+        dropbear_policy(model="dreamzero-yam", startup_timeout_s=startup_timeout_s)
+
+
 def test_reset_reuses_connection_but_isolates_same_instruction_episodes(monkeypatch) -> None:
     """Catch connection churn or reused episode state between identical trials."""
     remote = FakeRemotePolicy()
     connects: list[tuple[str, str, object]] = []
 
-    def connect(model: str, *, region: str, on_progress: object) -> FakeRemotePolicy:
+    def connect(
+        model: str,
+        *,
+        region: str,
+        on_progress: object,
+        startup_timeout: float,
+    ) -> FakeRemotePolicy:
+        del startup_timeout
         connects.append((model, region, on_progress))
         return remote
 
