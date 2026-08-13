@@ -90,6 +90,8 @@ def step_result(*, stalled: bool = False) -> PolicyStepResult:
         actions_remaining=15,
         source_chunk_id=4,
         source_observation_id=9,
+        source_control_tick=7,
+        source_capture_to_execution_ms=81.25,
         replan_epoch=1,
         cache_generation=2,
     )
@@ -119,8 +121,22 @@ def test_factory_rejects_every_other_model_offline() -> None:
 
 def test_factory_rejects_unknown_sampling_mode_offline() -> None:
     """Catch exposing an unsupported scheduler through the private adapter."""
-    with pytest.raises(ValueError, match="sampling must be upstream_eval or async_8"):
+    with pytest.raises(
+        ValueError,
+        match="sampling must be upstream_eval, async_8, or async_latest",
+    ):
         dropbear_policy(model="dreamzero-yam", sampling="custom")
+
+
+def test_factory_accepts_explicit_async_latest_without_connecting(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        lambda *_args, **_kwargs: pytest.fail("constructor touched the network"),
+    )
+
+    policy = dropbear_policy(model="dreamzero-yam", sampling="async_latest")
+
+    assert policy.sampling == "async_latest"
 
 
 def test_reset_passes_default_startup_timeout_to_dropbear_connect(monkeypatch) -> None:
@@ -366,6 +382,7 @@ def test_telemetry_records_runtime_transport_state_at_action_time(
     row = json.loads((tmp_path / record.metadata["dropbear_telemetry"]).read_text())
     assert row["runtime"]["transport_mode"] == "relay"
     assert row["runtime"]["fallback_reason"] == "quic_result_timeout"
+    assert row["runtime"]["sampling"] == "async_8"
 
 
 def test_explicit_close_unregisters_single_atexit_handler(monkeypatch) -> None:
