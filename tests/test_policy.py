@@ -111,6 +111,7 @@ def test_factory_constructs_only_dreamzero_yam_without_connecting(monkeypatch) -
     assert policy.info.action_space.shape == (14,)
     assert policy.info.control_hz == 15.0
     assert policy.config == PolicyConfig(action_horizon=24, replan_interval=1)
+    assert policy.sampling == "async_latest"
 
 
 def test_factory_rejects_every_other_model_offline() -> None:
@@ -382,7 +383,7 @@ def test_telemetry_records_runtime_transport_state_at_action_time(
     row = json.loads((tmp_path / record.metadata["dropbear_telemetry"]).read_text())
     assert row["runtime"]["transport_mode"] == "relay"
     assert row["runtime"]["fallback_reason"] == "quic_result_timeout"
-    assert row["runtime"]["sampling"] == "async_8"
+    assert row["runtime"]["sampling"] == "async_latest"
 
 
 def test_explicit_close_unregisters_single_atexit_handler(monkeypatch) -> None:

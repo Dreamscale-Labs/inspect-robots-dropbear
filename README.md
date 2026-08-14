@@ -7,20 +7,20 @@ logical episodes.
 
 This package is intentionally private and has no public license declaration yet.
 It supports Python 3.11 through 3.13 and requires the immutable
-`dropbear[dreamzero]==0.1.0a6` SDK release.
+`dropbear[dreamzero]==0.1.0a7` SDK release.
 
 ## Install and discover
 
 Install the immutable private Git release after DreamScale grants repository read access:
 
 ```bash
-uv add "inspect-robots-dropbear @ git+ssh://git@github.com/Dreamscale-Labs/inspect-robots-dropbear.git@v0.1.1"
+uv add "inspect-robots-dropbear @ git+ssh://git@github.com/Dreamscale-Labs/inspect-robots-dropbear.git@v0.1.2"
 ```
 
 Confirm the expected Dropbear SDK is active before starting an evaluation:
 
 ```bash
-python -c 'import dropbear; assert dropbear.__version__ == "0.1.0a6"'
+python -c 'import dropbear; assert dropbear.__version__ == "0.1.0a7"'
 ```
 
 Verify that the entry point is available without opening a cloud session:
@@ -34,13 +34,15 @@ do not replace or rename either. Change only the policy selection in the existin
 command:
 
 ```bash
---policy dropbear -P model=dreamzero-yam -P sampling=async_8
+--policy dropbear -P model=dreamzero-yam
 ```
 
-The support build also accepts `sampling=async_latest` for the explicitly approved YAM
-qualification. Its default remains `async_8` until that qualification is accepted. Use
-`sampling=upstream_eval` only for the agreed open-loop dataset evaluation. The adapter exposes no
-custom scheduling, buffering, horizon, or smoothing knobs.
+The default is YAM's qualified `async_latest` mode. Use `sampling=async_8` for the explicit
+compatibility/rollback path and `sampling=upstream_eval` only for the agreed open-loop dataset
+evaluation. The server keeps inference single-flight and latest-only. The SDK preserves two
+committed steps and applies its fixed absolute-target motion smoother only to the aligned
+`async_latest` suffix; the adapter exposes no custom scheduling, buffering, horizon, or smoothing
+knobs.
 
 The first connection has a 1,800-second startup budget by default so DreamZero-YAM can finish
 loading and warmup. Set `-P startup_timeout_s=<seconds>` to another finite positive value when an
