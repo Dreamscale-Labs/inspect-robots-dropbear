@@ -59,6 +59,7 @@ _DREAMZERO_MERGE_FIELDS = (
     "resolved_steps",
     "rebase_offset_steps",
     "first_executable_source_offset",
+    "max_abs_position_revision",
 )
 
 
@@ -107,9 +108,9 @@ def telemetry_row(
     context: TrialContext,
     runtime: Mapping[str, object],
 ) -> dict[str, object]:
-    """Project one policy step into schema-v1 diagnostics without payload vectors."""
+    """Project one policy step into schema-v2 diagnostics without payload vectors."""
     row: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "run_id": context.run_id,
         "scene_id": context.scene_id,
         "epoch": context.epoch,
@@ -118,6 +119,8 @@ def telemetry_row(
         "observation_id": result.observation_id,
         "source_observation_id": result.source_observation_id,
         "source_chunk_id": result.source_chunk_id,
+        "source_control_tick": result.source_control_tick,
+        "source_capture_to_execution_ms": result.source_capture_to_execution_ms,
         "replan_epoch": result.replan_epoch,
         "cache_generation": result.cache_generation,
         "join_key": f"{result.cache_generation}:{result.action_index}",

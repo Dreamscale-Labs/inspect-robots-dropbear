@@ -59,7 +59,7 @@ class DropbearPolicy(PolicyBase):
     """Describe DreamZero-YAM without reading config or opening a session."""
 
     region: RegionPreference
-    sampling: Literal["upstream_eval", "async_8"]
+    sampling: Literal["upstream_eval", "async_8", "async_latest"]
     startup_timeout_s: float
     timeout_s: float
     _episode_active: bool
@@ -71,14 +71,16 @@ class DropbearPolicy(PolicyBase):
         *,
         model: str = "dreamzero-yam",
         region: RegionPreference = "nearest",
-        sampling: Literal["upstream_eval", "async_8"] = "async_8",
+        sampling: Literal["upstream_eval", "async_8", "async_latest"] = "async_8",
         startup_timeout_s: float = 1800.0,
         timeout_s: float = 60.0,
     ) -> None:
         if model != "dreamzero-yam":
             raise ValueError("only dreamzero-yam is supported")
-        if sampling not in {"upstream_eval", "async_8"}:
-            raise ValueError("sampling must be upstream_eval or async_8")
+        if sampling not in {"upstream_eval", "async_8", "async_latest"}:
+            raise ValueError(
+                "sampling must be upstream_eval, async_8, or async_latest"
+            )
         if (
             isinstance(startup_timeout_s, bool)
             or not isinstance(startup_timeout_s, Real)
@@ -171,8 +173,10 @@ class DropbearPolicy(PolicyBase):
         )
         wall_s = time.perf_counter() - started
         if self._trial_context is not None:
+            runtime = runtime_identity(remote)
+            runtime["sampling"] = self.sampling
             self._telemetry_rows.append(
-                telemetry_row(result, self._trial_context, runtime_identity(remote))
+                telemetry_row(result, self._trial_context, runtime)
             )
         join_key = f"{result.cache_generation}:{result.action_index}"
         action_meta = {

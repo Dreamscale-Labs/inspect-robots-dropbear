@@ -63,6 +63,8 @@ def result_with_events() -> PolicyStepResult:
         actions_remaining=15,
         source_chunk_id=4,
         source_observation_id=9,
+        source_control_tick=7,
+        source_capture_to_execution_ms=81.25,
         replan_epoch=1,
         cache_generation=2,
         timing_events=(timing, timing),
@@ -85,11 +87,13 @@ def test_telemetry_row_is_joinable_bounded_and_strict_json() -> None:
     row = telemetry_row(result_with_events(), context(), runtime)
     encoded = json.dumps(row, allow_nan=False, sort_keys=True)
 
-    assert row["schema_version"] == 1
+    assert row["schema_version"] == 2
     assert row["env_step"] == 8
     assert row["logical_action_index"] == 8
     assert row["join_key"] == "2:8"
     assert row["action_source"] == "model"
+    assert row["source_control_tick"] == 7
+    assert row["source_capture_to_execution_ms"] == 81.25
     assert len(row["timing"]) == 2
     assert len(row["chunks"]) == 2
     assert len(row["merges"]) == 2
@@ -97,7 +101,7 @@ def test_telemetry_row_is_joinable_bounded_and_strict_json() -> None:
     assert "server_queue_ms" not in row["timing"][0]
     assert "client_overhead_ms" not in row["timing"][0]
     assert "actions" not in row["chunks"][0]
-    assert "max_abs_position_revision" not in row["merges"][0]
+    assert row["merges"][0]["max_abs_position_revision"] == 0.02
     for forbidden in ('"action"', '"actions"', '"image"', '"camera"'):
         assert forbidden not in encoded
 
@@ -109,7 +113,7 @@ class LeakyTimingEvent(PolicyTimingEvent):
     actions: tuple[float, ...] = (1.0, 2.0)
 
 
-def test_telemetry_event_projection_ignores_fields_outside_schema_v1() -> None:
+def test_telemetry_event_projection_ignores_fields_outside_schema_v2() -> None:
     """Catch a future SDK event field silently expanding the sidecar schema."""
     original = result_with_events().timing_events[0]
     leaky = LeakyTimingEvent(**original.__dict__)
@@ -121,6 +125,28 @@ def test_telemetry_event_projection_ignores_fields_outside_schema_v1() -> None:
     assert '"camera"' not in encoded
     assert '"actions"' not in encoded
     assert "secret" not in encoded
+
+
+def test_hold_telemetry_omits_false_source_provenance() -> None:
+    result = replace(
+        result_with_events(),
+        stalled=True,
+        source_chunk_id=None,
+        source_observation_id=None,
+        source_control_tick=None,
+        source_capture_to_execution_ms=None,
+        timing_events=(),
+        chunk_events=(),
+        merge_events=(),
+    )
+
+    row = telemetry_row(result, context(), {})
+
+    assert row["action_source"] == "hold"
+    assert "source_chunk_id" not in row
+    assert "source_observation_id" not in row
+    assert "source_control_tick" not in row
+    assert "source_capture_to_execution_ms" not in row
 
 
 @dataclass(frozen=True)

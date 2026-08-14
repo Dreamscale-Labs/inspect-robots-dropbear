@@ -37,8 +37,10 @@ command:
 --policy dropbear -P model=dreamzero-yam -P sampling=async_8
 ```
 
-Use `sampling=upstream_eval` only for the agreed open-loop dataset evaluation. The adapter exposes
-no custom scheduling, buffering, horizon, or smoothing knobs.
+The support build also accepts `sampling=async_latest` for the explicitly approved YAM
+qualification. Its default remains `async_8` until that qualification is accepted. Use
+`sampling=upstream_eval` only for the agreed open-loop dataset evaluation. The adapter exposes no
+custom scheduling, buffering, horizon, or smoothing knobs.
 
 The first connection has a 1,800-second startup budget by default so DreamZero-YAM can finish
 loading and warmup. Set `-P startup_timeout_s=<seconds>` to another finite positive value when an
@@ -70,11 +72,12 @@ adds one atomic diagnostics sidecar and records its relative path at
 dropbear/<run_id>/<sanitized-scene-id>-e<epoch>.jsonl
 ```
 
-Each sidecar row contains serving identity, timing, chunk/merge disposition, and the same Inspect
-environment step. Join it to the EvalLog, action JSONL, or Rerun timeline using `env_step`; use
-`join_key` (`<cache_generation>:<logical_action_index>`) for Dropbear chunk diagnostics. Sidecars do
-not duplicate action vectors, images, credentials, authorization material, certificates, or
-endpoints.
+Schema-v2 sidecar rows contain serving identity, source control tick, source camera
+capture-to-execution age, timing, accurate maximum overlapping-target revision, chunk/merge
+disposition, and the same Inspect environment step. Join them to the EvalLog, action JSONL, or
+Rerun timeline using `env_step`; use `join_key`
+(`<cache_generation>:<logical_action_index>`) for Dropbear chunk diagnostics. Sidecars do not
+duplicate action vectors, images, credentials, authorization material, certificates, or endpoints.
 
 ## Deterministic cleanup
 
