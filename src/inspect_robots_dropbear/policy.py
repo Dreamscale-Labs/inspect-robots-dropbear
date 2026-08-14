@@ -71,7 +71,7 @@ class DropbearPolicy(PolicyBase):
         *,
         model: str = "dreamzero-yam",
         region: RegionPreference = "nearest",
-        sampling: Literal["upstream_eval", "async_8", "async_latest"] = "async_8",
+        sampling: Literal["upstream_eval", "async_8", "async_latest"] = "async_latest",
         startup_timeout_s: float = 1800.0,
         timeout_s: float = 60.0,
     ) -> None:
