@@ -177,9 +177,9 @@ class FakeRemote:
 def test_runtime_identity_uses_only_explicitly_whitelisted_fields(monkeypatch) -> None:
     """Catch broad remote serialization that would leak credentials or payloads."""
     package_versions = {
-        "dropbear": "0.1.0a7",
+        "dropbear": "0.1.0a8",
         "inspect-robots": "0.1.0",
-        "inspect-robots-dropbear": "0.1.2",
+        "inspect-robots-dropbear": "0.1.3",
     }
     monkeypatch.setattr(
         "inspect_robots_dropbear.telemetry.importlib.metadata.version",
@@ -194,9 +194,9 @@ def test_runtime_identity_uses_only_explicitly_whitelisted_fields(monkeypatch) -
     assert identity["runtime_contract"]["chunk_size"] == 24
     assert identity["resolved_optimization_config"]["backend"] == "pytorch"
     assert identity["packages"] == {
-        "dropbear": "0.1.0a7",
+        "dropbear": "0.1.0a8",
         "inspect_robots": "0.1.0",
-        "inspect_robots_dropbear": "0.1.2",
+        "inspect_robots_dropbear": "0.1.3",
     }
     for forbidden in (
         "api_key",
