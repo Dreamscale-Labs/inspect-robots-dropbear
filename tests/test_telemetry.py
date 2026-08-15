@@ -158,7 +158,7 @@ class FakeRemote:
     transport_mode: str = "quic"
     fallback_reason: str | None = None
     runtime_contract: RuntimeContract = RuntimeContract(
-        action_hz=15.0,
+        action_hz=30.0,
         chunk_size=24,
         action_dim=14,
         action_space="raw_absolute_joint",
