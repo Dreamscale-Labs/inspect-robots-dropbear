@@ -7,7 +7,7 @@ logical episodes.
 
 This package is intentionally private and has no public license declaration yet.
 It supports Python 3.11 through 3.13 and requires the immutable
-`dropbear[dreamzero]==0.1.0a8` SDK release.
+`dropbear[dreamzero]==0.1.0a9` SDK release.
 
 ## Install and discover
 
@@ -20,7 +20,7 @@ uv add "inspect-robots-dropbear @ git+ssh://git@github.com/Dreamscale-Labs/inspe
 Confirm the expected Dropbear SDK is active before starting an evaluation:
 
 ```bash
-python -c 'import dropbear; assert dropbear.__version__ == "0.1.0a8"'
+python -c 'import dropbear; assert dropbear.__version__ == "0.1.0a9"'
 ```
 
 Verify that the entry point is available without opening a cloud session:
