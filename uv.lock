@@ -276,7 +276,7 @@ wheels = [
 
 [[package]]
 name = "dropbear"
-version = "0.1.0a7"
+version = "0.1.0a8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dropbear-transport" },
@@ -289,9 +289,9 @@ dependencies = [
     { name = "typer" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/50/af/4475c3a588115882f7e910b3121fb921f4f78cd0f9a6d74046e43a84b41f/dropbear-0.1.0a7.tar.gz", hash = "sha256:19938bf594e6a03d72e0fb56a8013ccc90460179e7452d76d11098c35eced899", size = 153082, upload-time = "2026-08-14T05:15:43.915Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2b/9d/9cb66a82b4c932c641540090e7b2525e4b50d10aacfcf7432133bf3b4f8d/dropbear-0.1.0a8.tar.gz", hash = "sha256:14821159c3eeac4ed7c498040d48d8122d8241a757b31c31ced40fb6655b3ee4", size = 155840, upload-time = "2026-08-15T15:22:22.459Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8c/f8/c8727287bf6b5e25e09a889f609415949e171981567239bb33ba1ff1fe3d/dropbear-0.1.0a7-py3-none-any.whl", hash = "sha256:c5c12639676d501c3731ad7f11ae73246e525db20d65897ca713d22819a9cbd9", size = 177075, upload-time = "2026-08-14T05:15:45.387Z" },
+    { url = "https://files.pythonhosted.org/packages/56/a8/49a9563b1a18a3e19fe3de59531b0cbc0a6611592e45de3ab3437cb45afb/dropbear-0.1.0a8-py3-none-any.whl", hash = "sha256:4ddd24fd63e45b632a2486bc37be375129f1d999d41cb58e8be512bc9cd47f5e", size = 179325, upload-time = "2026-08-15T15:22:23.775Z" },
 ]
 
 [package.optional-dependencies]
@@ -383,7 +383,7 @@ dependencies = [
 
 [[package]]
 name = "inspect-robots-dropbear"
-version = "0.1.2"
+version = "0.1.3"
 source = { editable = "." }
 dependencies = [
     { name = "dropbear", extra = ["dreamzero"] },
@@ -401,7 +401,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dropbear", extras = ["dreamzero"], specifier = "==0.1.0a7" },
+    { name = "dropbear", extras = ["dreamzero"], specifier = "==0.1.0a8" },
     { name = "inspect-robots", git = "https://github.com/robocurve/inspect-robots.git?rev=3990c6f0e4f7560602aa209066029424ea964261" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
     { name = "numpy", specifier = ">=2.0,<3" },
