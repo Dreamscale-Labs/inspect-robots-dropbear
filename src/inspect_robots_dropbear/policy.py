@@ -39,8 +39,8 @@ dropbear: Any = _dropbear
 
 # DreamZero YAM native control contract: 30 Hz, 24 consecutive actions (0.8 s).
 # Stated explicitly rather than read back from the SDK runtime contract on purpose.
-# The published SDK release this adapter pins still reports the retired 15 Hz rate,
-# so deriving the value would silently downgrade the qualification host to 15 Hz.
+# The pinned SDK now agrees, but a pin bump is a version change and this is a
+# rate the qualification host must not be able to drift on silently.
 YAM_CONTROL_HZ = 30.0
 YAM_ACTION_HORIZON = 24
 
