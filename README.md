@@ -5,8 +5,8 @@ Dropbear-hosted DreamZero-YAM. Discovery and construction are offline; the first
 opens one lazy Dropbear connection, and later trials reuse that connection while starting fresh
 logical episodes.
 
-Licensed under Apache 2.0. It supports Python 3.11 through 3.13 and requires the immutable
-`dropbear[dreamzero]==0.1.0a9` SDK release.
+Licensed under Apache 2.0. It supports Python 3.11 through 3.14 and requires the immutable
+`dropbear[dreamzero]==0.1.0a10` SDK release.
 
 Using it against a Dropbear-hosted model needs an API key and an entitlement for that model;
 the adapter itself is open.
@@ -23,7 +23,7 @@ uv add inspect-robots-dropbear
 Confirm the expected Dropbear SDK is active before starting an evaluation:
 
 ```bash
-python -c 'import dropbear; assert dropbear.__version__ == "0.1.0a9"'
+python -c 'import dropbear; assert dropbear.__version__ == "0.1.0a10"'
 ```
 
 Verify that the entry point is available without opening a cloud session:
