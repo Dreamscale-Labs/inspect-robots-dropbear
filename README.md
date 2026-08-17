@@ -43,8 +43,18 @@ The default is YAM's qualified `async_latest` mode. Use `sampling=async_8` for t
 compatibility/rollback path and `sampling=upstream_eval` only for an open-loop dataset
 evaluation. The server keeps inference single-flight and latest-only. The SDK preserves two
 committed steps and applies its fixed absolute-target motion smoother only to the aligned
-`async_latest` suffix; the adapter exposes no custom scheduling, buffering, horizon, or smoothing
-knobs.
+`async_latest` suffix; the adapter exposes no custom buffering, horizon, or smoothing knobs.
+
+`-P control_hz=<hz>` sets the rate the chunk is executed at, defaulting to DreamZero-YAM's native
+30 Hz and accepting any whole rate from 5 to 30. The whole chunk is executed at whatever rate you
+choose, so it stretches in time rather than being resampled: 24 actions span 0.8 s at 30 Hz and
+1.6 s at 15 Hz, with nothing dropped or interpolated.
+
+**Nothing enforces this rate.** Inspect's rollout adds no wall-clock pacing, so the real rate is
+however fast your embodiment's `step()` returns; `control_hz` is what the action scheduler plans
+against. Set it to the rate you actually achieve. The adapter measures the gap between policy steps,
+records it as `step_interval_ms` in the sidecar, and warns once if the measured rate diverges from
+the commanded one by more than 25%.
 
 The first connection has a 1,800-second startup budget by default so DreamZero-YAM can finish
 loading and warmup. Set `-P startup_timeout_s=<seconds>` to another finite positive value when a
@@ -60,7 +70,7 @@ The existing task and embodiment must provide all of the following on every poli
   right-gripper order; and
 - Inspect's integer `extra["env_step"]`, starting at zero and advancing once per delivered action.
 
-The adapter declares a 14-dimensional raw absolute-joint action at 30 Hz. It returns exactly one
+The adapter declares a 14-dimensional raw absolute-joint action at the commanded rate. It returns exactly one
 action per Inspect `act()` call while Dropbear owns DreamZero's managed action buffering. Simulator
 compatibility means matching those camera, state, action, clock, and rate contracts; it does not by
 itself establish physics parity, task success, or physical-robot safety.

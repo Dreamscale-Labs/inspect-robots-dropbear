@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import atexit
 import math
+import statistics
 import threading
 import time
+import warnings
 from collections.abc import Callable
 from numbers import Integral, Real
 from typing import Any, Literal
@@ -44,6 +46,23 @@ dropbear: Any = _dropbear
 YAM_CONTROL_HZ = 30.0
 YAM_ACTION_HORIZON = 24
 
+# Command rates a caller may ask for. The whole emitted chunk is executed at the
+# commanded rate, so it stretches in time rather than being resampled: 24 actions
+# span 0.8 s at 30 Hz and 1.6 s at 15 Hz, with nothing dropped or interpolated.
+#
+# Restated here rather than imported from dropbear.policy.runtime.contract for
+# the same reason the native rate is: that module is not public API. `connect`
+# validates again and remains the authority; this check exists so an unusable
+# rate fails during construction, before a session is opened.
+MIN_CONTROL_HZ = 5
+MAX_CONTROL_HZ = 30
+
+# Fraction by which the measured step rate may differ from the commanded one
+# before `act` says so. Wide on purpose: this is meant to catch an embodiment
+# running at a different rate entirely, not ordinary jitter.
+_RATE_WARN_TOLERANCE = 0.25
+_RATE_WARN_MIN_SAMPLES = 20
+
 YAM_DIM_LABELS = (
     "left_j0",
     "left_j1",
@@ -62,11 +81,32 @@ YAM_DIM_LABELS = (
 )
 
 
+def _resolve_control_hz(requested: float | None) -> float:
+    """Resolve the commanded rate, defaulting to the checkpoint's native one."""
+
+    if requested is None:
+        return YAM_CONTROL_HZ
+    if isinstance(requested, bool) or not isinstance(requested, Real):
+        raise ValueError("control_hz must be a whole number of hertz")
+    if not math.isfinite(float(requested)) or not float(requested).is_integer():
+        raise ValueError("control_hz must be a whole number of hertz")
+    resolved = int(requested)
+    if not MIN_CONTROL_HZ <= resolved <= MAX_CONTROL_HZ:
+        raise ValueError(
+            f"control_hz {resolved} is out of range; supported rates are "
+            f"{MIN_CONTROL_HZ} to {MAX_CONTROL_HZ} Hz inclusive. The emitted "
+            f"chunk is executed in full at the rate you choose, so it spans "
+            f"{YAM_ACTION_HORIZON}/rate seconds."
+        )
+    return float(resolved)
+
+
 class DropbearPolicy(PolicyBase):
     """Describe DreamZero-YAM without reading config or opening a session."""
 
     region: RegionPreference
     sampling: Literal["upstream_eval", "async_8", "async_latest"]
+    control_hz: float
     startup_timeout_s: float
     timeout_s: float
     _episode_active: bool
@@ -79,6 +119,7 @@ class DropbearPolicy(PolicyBase):
         model: str = "dreamzero-yam",
         region: RegionPreference = "nearest",
         sampling: Literal["upstream_eval", "async_8", "async_latest"] = "async_latest",
+        control_hz: float | None = None,
         startup_timeout_s: float = 1800.0,
         timeout_s: float = 60.0,
     ) -> None:
@@ -98,6 +139,7 @@ class DropbearPolicy(PolicyBase):
         self.model = model
         self.region = region
         self.sampling = sampling
+        self.control_hz = _resolve_control_hz(control_hz)
         self.startup_timeout_s = float(startup_timeout_s)
         self.timeout_s = timeout_s
         self._remote: Any | None = None
@@ -106,6 +148,9 @@ class DropbearPolicy(PolicyBase):
         self._trial_context: TrialContext | None = None
         self._trial_log_dir: str | None = None
         self._telemetry_rows: list[dict[str, object]] = []
+        self._last_act_ns: int | None = None
+        self._step_intervals_ms: list[float] = []
+        self._rate_warned = False
         self.info = PolicyInfo(
             name="dropbear",
             action_space=Box(
@@ -126,7 +171,7 @@ class DropbearPolicy(PolicyBase):
                 ),
                 state=StateSpec(fields=(StateField("joint_pos", (14,), unit=""),)),
             ),
-            control_hz=YAM_CONTROL_HZ,
+            control_hz=self.control_hz,
         )
         self.config = PolicyConfig(action_horizon=YAM_ACTION_HORIZON, replan_interval=1)
         self._atexit_handler = self._atexit_close
@@ -141,6 +186,10 @@ class DropbearPolicy(PolicyBase):
                 region=self.region,
                 on_progress=None,
                 startup_timeout=self.startup_timeout_s,
+                # Nothing server-side takes a rate: this tells the SDK's replan
+                # scheduler how fast the caller intends to execute a chunk, so
+                # its latency-in-steps arithmetic matches reality.
+                control_hz=int(self.control_hz),
             )
         return self._remote
 
@@ -163,6 +212,7 @@ class DropbearPolicy(PolicyBase):
             strategy=RunStrategy(dreamzero_sampling=self.sampling),
         )
         self._episode_active = True
+        self._last_act_ns = None
 
     def act(self, observation: Observation) -> ActionChunk:
         """Advance the externally clocked Dropbear episode by one Inspect step."""
@@ -172,6 +222,7 @@ class DropbearPolicy(PolicyBase):
         remote = self._remote
         if remote is None or not self._episode_active:
             raise RuntimeError("reset() must start an episode before act()")
+        step_interval_ms = self._record_step_interval()
         started = time.perf_counter()
         result = remote.step(
             to_dreamzero_yam(observation),
@@ -182,8 +233,14 @@ class DropbearPolicy(PolicyBase):
         if self._trial_context is not None:
             runtime = runtime_identity(remote)
             runtime["sampling"] = self.sampling
+            runtime["commanded_control_hz"] = self.control_hz
             self._telemetry_rows.append(
-                telemetry_row(result, self._trial_context, runtime)
+                telemetry_row(
+                    result,
+                    self._trial_context,
+                    runtime,
+                    step_interval_ms=step_interval_ms,
+                )
             )
         join_key = f"{result.cache_generation}:{result.action_index}"
         action_meta = {
@@ -196,9 +253,59 @@ class DropbearPolicy(PolicyBase):
         }
         return ActionChunk(
             actions=[Action(data=np.asarray(result.action, dtype=np.float64), meta=action_meta)],
-            control_hz=YAM_CONTROL_HZ,
+            control_hz=self.control_hz,
             inference_latency_s=wall_s,
             meta={"dropbear_join_key": join_key},
+        )
+
+    def _record_step_interval(self) -> float | None:
+        """Measure the wall-clock gap since the previous act(), in milliseconds."""
+        now_ns = time.monotonic_ns()
+        previous = self._last_act_ns
+        self._last_act_ns = now_ns
+        if previous is None:
+            return None
+        interval_ms = (now_ns - previous) / 1e6
+        self._step_intervals_ms.append(interval_ms)
+        self._warn_if_rate_diverges()
+        return interval_ms
+
+    def observed_control_hz(self) -> float | None:
+        """The rate this episode is actually stepping at, or None if too early."""
+        if len(self._step_intervals_ms) < _RATE_WARN_MIN_SAMPLES:
+            return None
+        median_ms = statistics.median(self._step_intervals_ms)
+        if median_ms <= 0:
+            return None
+        return 1000.0 / median_ms
+
+    def _warn_if_rate_diverges(self) -> None:
+        """Say so, once, when the loop is not running at the commanded rate.
+
+        Nothing enforces a control rate in this path. Inspect's rollout adds no
+        wall-clock pacing of its own, so the real rate is however fast the
+        embodiment returns, and `control_hz` is a declaration the SDK plans
+        against rather than a rate anything imposes. A silent disagreement makes
+        every replan decision wrong while the run still looks healthy. This
+        cannot correct it, but it refuses to let it pass unremarked.
+        """
+        if self._rate_warned:
+            return
+        observed = self.observed_control_hz()
+        if observed is None:
+            return
+        if abs(observed - self.control_hz) <= _RATE_WARN_TOLERANCE * self.control_hz:
+            return
+        self._rate_warned = True
+        warnings.warn(
+            f"stepping at about {observed:.1f} Hz but control_hz commands "
+            f"{self.control_hz:g} Hz. Nothing enforces the rate here, so the "
+            f"measured one is what the robot is doing and the commanded one is "
+            f"what the action scheduler is planning against. Either pass "
+            f"control_hz={round(observed)} to match the loop, or pace the "
+            f"embodiment at {self.control_hz:g} Hz.",
+            RuntimeWarning,
+            stacklevel=3,
         )
 
     def on_trial_start(self, scene_id: str, epoch: int, log_dir: str, run_id: str) -> None:
@@ -206,6 +313,8 @@ class DropbearPolicy(PolicyBase):
         self._trial_context = TrialContext(run_id=run_id, scene_id=scene_id, epoch=epoch)
         self._trial_log_dir = log_dir
         self._telemetry_rows.clear()
+        self._step_intervals_ms.clear()
+        self._last_act_ns = None
 
     def on_trial_end(self, record: TrialRecord, log_dir: str, run_id: str) -> None:
         """Persist partial diagnostics even when logical episode cleanup fails."""

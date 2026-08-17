@@ -28,6 +28,13 @@ TASK_NAME = "your-task"
 EMBODIMENT_NAME = "your-embodiment"
 LOG_DIR = "logs"
 
+# Set this to the rate your embodiment actually achieves, not the one you wish
+# it did. 30 Hz is DreamZero-YAM's native rate and the default; 5 to 30 is
+# accepted. Nothing enforces it -- Inspect adds no pacing, so your embodiment is
+# the clock. The rate you declare is what the action scheduler plans against, so
+# a wrong one degrades replanning while the run still looks healthy.
+CONTROL_HZ = 30
+
 
 def summarise_sidecar(log_dir: str) -> None:
     """Report where the actions actually came from.
@@ -55,6 +62,16 @@ def summarise_sidecar(log_dir: str) -> None:
             file=sys.stderr,
         )
 
+    # The rate the loop actually ran at, which nothing enforces. If this is far
+    # from CONTROL_HZ, the action scheduler has been planning against a rate the
+    # robot was not running at.
+    intervals = sorted(
+        row["step_interval_ms"] for row in rows if isinstance(row.get("step_interval_ms"), float)
+    )
+    if intervals:
+        median_ms = intervals[len(intervals) // 2]
+        print(f"measured rate: {1000.0 / median_ms:.1f} Hz (commanded {CONTROL_HZ})")
+
     timings = [entry for row in rows if row.get("timing") for entry in row["timing"]]
     if not timings:
         return
@@ -79,7 +96,7 @@ def main() -> int:
 
     # `resolve` returns a constructed object, not a factory. Policy parameters
     # are the same ones you would pass with `-P`, given as keyword arguments.
-    policy = resolve("policy", "dropbear", model=MODEL)
+    policy = resolve("policy", "dropbear", model=MODEL, control_hz=CONTROL_HZ)
     task = resolve("task", TASK_NAME)
     embodiment = resolve("embodiment", EMBODIMENT_NAME)
 
