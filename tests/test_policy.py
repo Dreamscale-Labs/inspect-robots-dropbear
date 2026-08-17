@@ -153,8 +153,9 @@ def test_reset_passes_default_startup_timeout_to_dropbear_connect(monkeypatch) -
         on_progress: object,
         startup_timeout: float,
         control_hz: int,
+        keep_warm: int,
     ) -> FakeRemotePolicy:
-        del region, on_progress, control_hz
+        del region, on_progress, control_hz, keep_warm
         startup_timeouts.append(startup_timeout)
         return remote
 
@@ -178,8 +179,9 @@ def test_custom_startup_timeout_does_not_change_per_step_timeout(monkeypatch) ->
         on_progress: object,
         startup_timeout: float,
         control_hz: int,
+        keep_warm: int,
     ) -> FakeRemotePolicy:
-        del region, on_progress, control_hz
+        del region, on_progress, control_hz, keep_warm
         startup_timeouts.append(startup_timeout)
         return remote
 
@@ -226,8 +228,9 @@ def test_reset_reuses_connection_but_isolates_same_instruction_episodes(monkeypa
         on_progress: object,
         startup_timeout: float,
         control_hz: int,
+        keep_warm: int,
     ) -> FakeRemotePolicy:
-        del startup_timeout, control_hz
+        del startup_timeout, control_hz, keep_warm
         connects.append((model, region, on_progress))
         return remote
 
@@ -432,8 +435,9 @@ def test_atexit_fallback_uses_bounded_daemon_thread(monkeypatch) -> None:
     assert joins == [5.0]
 
 
-def _connect_recording(remote: "FakeRemotePolicy", sink: list[int]):
-    """A connect stub that records the command rate the adapter asked for."""
+def _connect_recording(remote: "FakeRemotePolicy", sink: list[int], warm_sink=None):
+    """A connect stub recording the rate and warm hold the adapter asked for."""
+    warm_sink = [] if warm_sink is None else warm_sink
 
     def connect(
         _model: str,
@@ -442,9 +446,11 @@ def _connect_recording(remote: "FakeRemotePolicy", sink: list[int]):
         on_progress: object,
         startup_timeout: float,
         control_hz: int,
+        keep_warm: int,
     ) -> FakeRemotePolicy:
         del region, on_progress, startup_timeout
         sink.append(control_hz)
+        warm_sink.append(keep_warm)
         return remote
 
     return connect
@@ -577,3 +583,78 @@ def test_a_loop_running_at_the_commanded_rate_is_silent(monkeypatch) -> None:
             now_ns[0] += 66_667_000
 
     assert policy.observed_control_hz() == pytest.approx(15.0, rel=1e-3)
+
+
+def test_keep_warm_defaults_to_off(monkeypatch) -> None:
+    """Catch a default that silently keeps billing after the run ends.
+
+    A warm hold reserves the GPU and bills for it, so it must be something the
+    caller asks for. Defaulting it on would charge people for iterating.
+    """
+    remote = FakeRemotePolicy(step_result=step_result())
+    warm: list[int] = []
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        _connect_recording(remote, [], warm),
+    )
+    policy = dropbear_policy(model="dreamzero-yam")
+
+    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
+
+    assert policy.keep_warm_s == 0
+    assert warm == [0]
+
+
+def test_keep_warm_reaches_connect(monkeypatch) -> None:
+    """Catch the hold being accepted but never sent, so nothing parks."""
+    remote = FakeRemotePolicy(step_result=step_result())
+    warm: list[int] = []
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        _connect_recording(remote, [], warm),
+    )
+    policy = dropbear_policy(model="dreamzero-yam", keep_warm_s=300)
+
+    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
+    policy.act(inspect_observation())
+
+    assert policy.keep_warm_s == 300
+    assert warm == [300]
+
+
+@pytest.mark.parametrize("keep_warm_s", [-1, 3601, 10.5, True, False, "300", float("nan")])
+def test_unusable_keep_warm_fails_before_a_session_is_opened(
+    monkeypatch, keep_warm_s: object
+) -> None:
+    """Catch an unusable hold that only surfaces after paying a cold start."""
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        lambda *_args, **_kwargs: pytest.fail("invalid keep_warm_s opened a connection"),
+    )
+    with pytest.raises(ValueError, match="keep_warm_s"):
+        dropbear_policy(model="dreamzero-yam", keep_warm_s=keep_warm_s)
+
+
+def test_keep_warm_bounds_are_inclusive(monkeypatch) -> None:
+    """Catch an off-by-one at either end of the documented range."""
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        lambda *_args, **_kwargs: pytest.fail("constructor touched the network"),
+    )
+    assert dropbear_policy(model="dreamzero-yam", keep_warm_s=0).keep_warm_s == 0
+    assert dropbear_policy(model="dreamzero-yam", keep_warm_s=3600).keep_warm_s == 3600
+
+
+def test_keep_warm_is_recorded_in_telemetry(monkeypatch) -> None:
+    """Catch a surprising invoice that cannot be explained from the sidecar."""
+    remote = FakeRemotePolicy(step_result=step_result())
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        _connect_recording(remote, []),
+    )
+    policy = dropbear_policy(model="dreamzero-yam", keep_warm_s=120)
+    policy.on_trial_start("spell", 0, "logs", "run-1")
+    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
+    policy.act(inspect_observation())
+
+    assert policy._telemetry_rows[0]["runtime"]["keep_warm_s"] == 120
