@@ -1,20 +1,22 @@
 # inspect-robots-dropbear
 
-Private [Inspect Robots](https://github.com/robocurve/inspect-robots) policy adapter for
+An [Inspect Robots](https://github.com/robocurve/inspect-robots) policy adapter for
 Dropbear-hosted DreamZero-YAM. Discovery and construction are offline; the first trial reset
 opens one lazy Dropbear connection, and later trials reuse that connection while starting fresh
 logical episodes.
 
-This package is intentionally private and has no public license declaration yet.
-It supports Python 3.11 through 3.13 and requires the immutable
+Licensed under Apache 2.0. It supports Python 3.11 through 3.13 and requires the immutable
 `dropbear[dreamzero]==0.1.0a9` SDK release.
+
+Using it against a Dropbear-hosted model needs an API key and an entitlement for that model;
+the adapter itself is open.
 
 ## Install and discover
 
-Install the immutable private Git release after DreamScale grants repository read access:
+Install the pinned release:
 
 ```bash
-uv add "inspect-robots-dropbear @ git+ssh://git@github.com/Dreamscale-Labs/inspect-robots-dropbear.git@v0.1.3"
+uv add "inspect-robots-dropbear @ git+https://github.com/Dreamscale-Labs/inspect-robots-dropbear.git@v0.1.5"
 ```
 
 Confirm the expected Dropbear SDK is active before starting an evaluation:

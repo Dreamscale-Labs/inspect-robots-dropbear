@@ -276,7 +276,7 @@ wheels = [
 
 [[package]]
 name = "dropbear"
-version = "0.1.0a8"
+version = "0.1.0a9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dropbear-transport" },
@@ -289,9 +289,9 @@ dependencies = [
     { name = "typer" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2b/9d/9cb66a82b4c932c641540090e7b2525e4b50d10aacfcf7432133bf3b4f8d/dropbear-0.1.0a8.tar.gz", hash = "sha256:14821159c3eeac4ed7c498040d48d8122d8241a757b31c31ced40fb6655b3ee4", size = 155840, upload-time = "2026-08-15T15:22:22.459Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/51/ee/5f30e93637c354c2fc30dc7013200e7561a68e35bae29fddbe58621fa325/dropbear-0.1.0a9.tar.gz", hash = "sha256:c41ad450a9c192406d14607d2aa32fa4410266c4689ffb80041acd54f0a02cc1", size = 158020, upload-time = "2026-08-17T03:27:05.37Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/a8/49a9563b1a18a3e19fe3de59531b0cbc0a6611592e45de3ab3437cb45afb/dropbear-0.1.0a8-py3-none-any.whl", hash = "sha256:4ddd24fd63e45b632a2486bc37be375129f1d999d41cb58e8be512bc9cd47f5e", size = 179325, upload-time = "2026-08-15T15:22:23.775Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/91/c1e161429d09bf6dde2fc25a84134a0983a7ca883f9360395a85a0d27925/dropbear-0.1.0a9-py3-none-any.whl", hash = "sha256:30032e6e9b37ac6dbda71319dfddfb75bdef8bb780b30382926433d03fa360f1", size = 181304, upload-time = "2026-08-17T03:27:06.709Z" },
 ]
 
 [package.optional-dependencies]
@@ -301,7 +301,7 @@ dreamzero = [
 
 [[package]]
 name = "dropbear-transport"
-version = "0.1.1a4"
+version = "0.1.1a5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aioquic" },
@@ -312,9 +312,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/24/12/8d510815d9ebc80112a4a50fdcc3beee948022319e69da9b08637c504cdf/dropbear_transport-0.1.1a4.tar.gz", hash = "sha256:e1b8b3dcd177bee632b0e65d7f49e86fa5504c212e0ca3536a131cc6ce36adb4", size = 38611, upload-time = "2026-08-12T03:03:53.348Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/19/712ddaceaf4d9ff9c9fd2850018f0406aab6e1fcc74b905332b6797e6fa0/dropbear_transport-0.1.1a5.tar.gz", hash = "sha256:054c23a772c10ff46e76d67d1915e80680b7a3a8415aa4217418225a67c81365", size = 38728, upload-time = "2026-08-17T03:26:46.811Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/b8/f4e4688a5f88735968711f955001a2714a0a7ce37d257ecf01e10f3b856c/dropbear_transport-0.1.1a4-py3-none-any.whl", hash = "sha256:294e215d5d64e1353d66a8a5a6e95202f373bef6f0a731ef6e07f7c0370b9f4c", size = 45706, upload-time = "2026-08-12T03:03:52.341Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/25/91dc2868323061433e6253b1c6a43723748b7c5dd489601d56997266ed0b/dropbear_transport-0.1.1a5-py3-none-any.whl", hash = "sha256:adf093833ef59272124fa3c8b4107a10734ee336e15f1001140b06885fadd8a7", size = 45826, upload-time = "2026-08-17T03:26:47.772Z" },
 ]
 
 [[package]]
@@ -383,7 +383,7 @@ dependencies = [
 
 [[package]]
 name = "inspect-robots-dropbear"
-version = "0.1.3"
+version = "0.1.5"
 source = { editable = "." }
 dependencies = [
     { name = "dropbear", extra = ["dreamzero"] },
@@ -401,7 +401,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dropbear", extras = ["dreamzero"], specifier = "==0.1.0a8" },
+    { name = "dropbear", extras = ["dreamzero"], specifier = "==0.1.0a9" },
     { name = "inspect-robots", git = "https://github.com/robocurve/inspect-robots.git?rev=3990c6f0e4f7560602aa209066029424ea964261" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
     { name = "numpy", specifier = ">=2.0,<3" },
