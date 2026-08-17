@@ -9,14 +9,14 @@ task and embodiment do not change to use Dropbear -- only the policy does.
 
     python run_eval.py
 
-Requires `DROPBEAR_API_KEY` and an entitlement for the model.
+Requires `dropbear login` (or `dropbear login --api-key "<key>"` on a headless
+controller) and an entitlement for the model.
 """
 
 from __future__ import annotations
 
 import collections
 import json
-import os
 import pathlib
 import sys
 
@@ -90,9 +90,11 @@ def summarise_sidecar(log_dir: str) -> None:
 
 
 def main() -> int:
-    if not os.environ.get("DROPBEAR_API_KEY"):
-        print("set DROPBEAR_API_KEY first", file=sys.stderr)
-        return 2
+    # No credential preflight here on purpose. The SDK reads its key from
+    # ~/.dropbear/config.toml, not from the environment, so an env-var check
+    # would pass for someone who has not run `dropbear login` and fail for
+    # someone who has. `connect()` already reports a missing credential
+    # precisely, and names the command that fixes it.
 
     # `resolve` returns a constructed object, not a factory. Policy parameters
     # are the same ones you would pass with `-P`, given as keyword arguments.

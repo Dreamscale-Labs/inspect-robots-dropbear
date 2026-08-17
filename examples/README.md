@@ -6,16 +6,65 @@ bimanual YAM through Inspect Robots, using this adapter.
 See the [Inspect Robots guide](https://docs.dropbear.dreamscalelabs.com/guides/inspect-robots)
 for the full integration reference.
 
-Everything here is adapted from a run that completed against production, not
-from the docs: 120 steps, 51 model-sourced actions, GPU inference 324.9 ms p50,
-`wss_tunnel` to `us-west-2`, `dropbear 0.1.0a9` / `inspect-robots 0.53.1` /
-`inspect-robots-dropbear 0.1.7`.
+| directory | command rate | when to start here |
+| --- | --- | --- |
+| [`native-30hz/`](native-30hz/) | 30 Hz, the model's own rate | Your round trip to `us-west-2` is short, or you want the most responsive control the model supports |
+| [`reduced-15hz/`](reduced-15hz/) | 15 Hz | You are far from the region, or your first run comes back mostly `hold` |
+
+Both directories contain the same two files, differing only in the rate:
+
+| file | what it is |
+| --- | --- |
+| `run_eval.py` | A complete evaluation: resolve the policy, run, close, then check where the actions came from |
+| `yam_embodiment.py` | The observation and action contract, as a working skeleton |
+
+## Which rate to use
+
+Both of these are real runs against production from Sydney, same code, same
+recorded input, same day — only the rate differs:
+
+| | 30 Hz | 15 Hz |
+| --- | --- | --- |
+| Chunk horizon | 0.8 s | **1.6 s** |
+| Model-sourced actions | 39 / 120 | **583 / 600** |
+| Holds (buffer underruns) | **81 (67.5%)** | **17 (2.8%)** |
+| GPU inference p50 | 333 ms | 321 ms |
+| Observation-to-action p50 | 644 ms | 594 ms |
+
+The latency did not improve — that is set by distance and by the GPU, and 15 Hz
+does not touch either. What changed is that a 24-action chunk now covers 1.6 s
+of wall clock instead of 0.8 s, while the round trip stayed near 600 ms. At
+30 Hz the buffer drains before its replacement lands and the arm holds; at 15 Hz
+it does not.
+
+Nothing is dropped or interpolated when you lower the rate. Every emitted action
+still executes, just spread over more time, so the trajectory is the one the
+model produced.
+
+**A lower rate is not free.** The arm reacts to a new observation half as often,
+which matters for anything contact-rich or fast. Prefer 30 Hz if you can hold it,
+and treat a high hold fraction as the signal to drop down — not the default.
+
+## Setup
+
+```bash
+uv add inspect-robots-dropbear
+dropbear login --api-key "<your key>"   # or plain `dropbear login` with a browser
+dropbear status --model dreamzero-yam
+```
+
+The SDK reads its credential from `~/.dropbear/config.toml`, which `login`
+writes; it does not read `DROPBEAR_API_KEY` from the environment.
+
+Then edit `TASK_NAME` and `EMBODIMENT_NAME` in `run_eval.py` to your registered
+names. Your task and embodiment do not change to use Dropbear — only the policy
+does.
 
 > **These examples are deliberately incomplete, and none of it has run on a
-> physical YAM.** The run behind them used a stub arm: synthetic frames and a
-> perfect-tracking executor. What is proven is the *serving* path — install,
-> auth, session lifecycle, observation upload, action delivery, timing — which
-> is independent of the robot.
+> physical YAM.** The runs behind them used a stand-in arm: a pinned recording of
+> a real YAM episode for the cameras, and a perfect-tracking executor. What is
+> proven is the *serving* path — install, auth, session lifecycle, observation
+> upload, action delivery, timing — which is independent of the robot.
 >
 > The hardware half is yours, and we cannot anticipate your setup: camera
 > drivers and their real capture clocks, CAN bus and joint ordering, calibration,
@@ -24,37 +73,24 @@ from the docs: 120 steps, 51 model-sourced actions, GPU inference 324.9 ms p50,
 > says so, and expect the first hardware bring-up to surface things this file
 > does not mention.
 
-| file | what it is |
-| --- | --- |
-| `run_eval.py` | A complete evaluation: resolve the policy, run, close, then check where the actions came from |
-| `yam_embodiment.py` | The observation and action contract, as a working skeleton |
-
-## Setup
-
-```bash
-uv add inspect-robots-dropbear
-export DROPBEAR_API_KEY="<your key>"
-dropbear status --model dreamzero-yam
-```
-
-Then edit `TASK_NAME` and `EMBODIMENT_NAME` in `run_eval.py` to your registered
-names. Your task and embodiment do not change to use Dropbear — only the policy
-does.
-
 ## The three things that actually bite
 
 **1. A green run can contain no model actions.** Inspect reports success when a
 trial completes without raising, and `episode_length` counts steps rather than
-inference. An evaluation where the robot held position for all 120 steps looks
+inference. An evaluation where the robot held position for every step looks
 identical in the EvalLog to one the model drove. We shipped exactly that result
 before checking. `run_eval.py` prints `action_source` after every run for this
 reason; if you take one thing from these examples, take that check.
 
-**2. Your control loop must pace itself.** DreamZero-YAM returns 24 actions
-covering 0.8 s at 30 Hz, and the round trip is several hundred milliseconds. A
-loop that steps as fast as the code allows finishes the episode before any chunk
-can arrive, and every action is a hold. Physical hardware paces itself for free;
-anything simulated or stubbed has to be told to.
+**2. Your control loop must pace itself, at the rate you declared.** Nothing
+enforces the command rate: Inspect's rollout adds no wall-clock pacing, so your
+embodiment is the clock. `control_hz` only tells the action scheduler what to
+plan against. A loop that steps as fast as the code allows finishes the episode
+before any chunk can arrive, and every action is a hold; a loop that steps at a
+rate other than the one it declared makes every replan decision wrong. Physical
+hardware paces itself for free; anything simulated or stubbed has to be told to.
+The adapter measures the gap between steps and warns if it drifts more than 25%
+from what you commanded.
 
 **3. Keep `observe()` cheap.** Dropbear samples observations on the *capture*
 clock, not once per action, because the sampler always wants the freshest frame.
@@ -72,11 +108,12 @@ the action, so they are measurements rather than client guesses:
 - `server_inference_ms` — GPU time
 - `obs_to_action_ms` — the full round trip
 - `action_source` — `model` or `hold`, per step
+- `step_interval_ms` — the gap between policy steps, i.e. the rate you *actually* ran at
 
 `obs_to_action_ms − server_inference_ms` is network, encode, decode, and
 scheduling combined. It is a residual, not a measurement, and it is dominated by
-distance to `us-west-2`. From Sydney it was ~250 ms p50; co-locating the client
-near the region moves it far more than any client-side tuning.
+distance to `us-west-2`. From Sydney it was ~270–310 ms p50; co-locating the
+client near the region moves it far more than any client-side tuning.
 
 Sidecars carry no action vectors, images, credentials, or endpoints, so they are
 safe to attach to a bug report.
