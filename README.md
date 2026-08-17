@@ -11,6 +11,9 @@ Licensed under Apache 2.0. It supports Python 3.11 through 3.13 and requires the
 Using it against a Dropbear-hosted model needs an API key and an entitlement for that model;
 the adapter itself is open.
 
+Worked examples live in [`examples/`](examples/): a complete evaluation and a
+skeleton embodiment showing the observation and action contract.
+
 ## Install and discover
 
 ```bash
