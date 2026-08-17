@@ -57,6 +57,17 @@ YAM_ACTION_HORIZON = 24
 MIN_CONTROL_HZ = 5
 MAX_CONTROL_HZ = 30
 
+# Seconds a closed session may be held warm for the next run to reclaim. The
+# control plane validates 0..3600 and rejects anything outside it at session
+# create; this bound is restated so an unusable value fails during
+# construction, before a cold start has been paid for.
+#
+# Zero -- the default -- means close really closes. Any positive value makes
+# `close()` park instead of terminate, and **parked time bills at the full
+# rate**, because the GPU stays reserved for you. That trade only pays off
+# across an iteration loop of short, closely-spaced runs.
+MAX_KEEP_WARM_S = 3600
+
 # Fraction by which the measured step rate may differ from the commanded one
 # before `act` says so. Wide on purpose: this is meant to catch an embodiment
 # running at a different rate entirely, not ordinary jitter.
@@ -101,12 +112,32 @@ def _resolve_control_hz(requested: float | None) -> float:
     return float(resolved)
 
 
+def _resolve_keep_warm(requested: int | None) -> int:
+    """Resolve the post-close warm-hold window, in whole seconds."""
+
+    if requested is None:
+        return 0
+    if isinstance(requested, bool) or not isinstance(requested, Real):
+        raise ValueError("keep_warm_s must be a whole number of seconds")
+    if not math.isfinite(float(requested)) or not float(requested).is_integer():
+        raise ValueError("keep_warm_s must be a whole number of seconds")
+    resolved = int(requested)
+    if not 0 <= resolved <= MAX_KEEP_WARM_S:
+        raise ValueError(
+            f"keep_warm_s {resolved} is out of range; 0 disables the warm hold "
+            f"and {MAX_KEEP_WARM_S} is the maximum. Held time is billed at the "
+            f"full rate, so this is a cost you choose, not a free cache."
+        )
+    return resolved
+
+
 class DropbearPolicy(PolicyBase):
     """Describe DreamZero-YAM without reading config or opening a session."""
 
     region: RegionPreference
     sampling: Literal["upstream_eval", "async_8", "async_latest"]
     control_hz: float
+    keep_warm_s: int
     startup_timeout_s: float
     timeout_s: float
     _episode_active: bool
@@ -120,6 +151,7 @@ class DropbearPolicy(PolicyBase):
         region: RegionPreference = "nearest",
         sampling: Literal["upstream_eval", "async_8", "async_latest"] = "async_latest",
         control_hz: float | None = None,
+        keep_warm_s: int | None = None,
         startup_timeout_s: float = 1800.0,
         timeout_s: float = 60.0,
     ) -> None:
@@ -140,6 +172,7 @@ class DropbearPolicy(PolicyBase):
         self.region = region
         self.sampling = sampling
         self.control_hz = _resolve_control_hz(control_hz)
+        self.keep_warm_s = _resolve_keep_warm(keep_warm_s)
         self.startup_timeout_s = float(startup_timeout_s)
         self.timeout_s = timeout_s
         self._remote: Any | None = None
@@ -190,6 +223,10 @@ class DropbearPolicy(PolicyBase):
                 # scheduler how fast the caller intends to execute a chunk, so
                 # its latency-in-steps arithmetic matches reality.
                 control_hz=int(self.control_hz),
+                # Non-zero turns the SDK's close into a detach, so the session
+                # parks with the model resident and the next run reclaims it
+                # instead of paying another cold start. Parked time is billed.
+                keep_warm=self.keep_warm_s,
             )
         return self._remote
 
@@ -234,6 +271,9 @@ class DropbearPolicy(PolicyBase):
             runtime = runtime_identity(remote)
             runtime["sampling"] = self.sampling
             runtime["commanded_control_hz"] = self.control_hz
+            # Recorded because a non-zero hold keeps billing after the run ends,
+            # so a surprising invoice should be explicable from the sidecar.
+            runtime["keep_warm_s"] = self.keep_warm_s
             self._telemetry_rows.append(
                 telemetry_row(
                     result,
@@ -354,7 +394,14 @@ class DropbearPolicy(PolicyBase):
         thread.join(timeout=5.0)
 
     def close(self) -> None:
-        """End the current episode and release the owned Dropbear session once."""
+        """End the episode and release the session once.
+
+        With `keep_warm_s = 0` this terminates the session and billing stops.
+        With a positive hold the SDK detaches instead, so the session parks with
+        the model resident and **keeps billing** until it is reclaimed or the
+        window expires. That is the trade: you are paying to skip the next cold
+        start.
+        """
         if self._closed:
             return
         self._closed = True

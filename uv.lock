@@ -443,7 +443,7 @@ wheels = [
 
 [[package]]
 name = "inspect-robots-dropbear"
-version = "0.1.9"
+version = "0.1.10"
 source = { editable = "." }
 dependencies = [
     { name = "dropbear", extra = ["dreamzero"] },

@@ -50,6 +50,11 @@ committed steps and applies its fixed absolute-target motion smoother only to th
 choose, so it stretches in time rather than being resampled: 24 actions span 0.8 s at 30 Hz and
 1.6 s at 15 Hz, with nothing dropped or interpolated.
 
+`-P keep_warm_s=<seconds>` holds the session after close (0-3600, default 0) so the next run reclaims
+it instead of starting cold -- 147s against 23s, measured back to back. **A hold is billed at the full
+rate and `close()` no longer stops the meter**, because parking keeps the GPU reserved for you. Use it
+while iterating; leave it at 0 for unattended runs.
+
 **Nothing enforces this rate.** Inspect's rollout adds no wall-clock pacing, so the real rate is
 however fast your embodiment's `step()` returns; `control_hz` is what the action scheduler plans
 against. Set it to the rate you actually achieve. The adapter measures the gap between policy steps,
