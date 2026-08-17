@@ -16,7 +16,7 @@ the adapter itself is open.
 Install the pinned release:
 
 ```bash
-uv add "inspect-robots-dropbear @ git+https://github.com/Dreamscale-Labs/inspect-robots-dropbear.git@v0.1.5"
+uv add "inspect-robots-dropbear @ git+https://github.com/Dreamscale-Labs/inspect-robots-dropbear.git@v0.1.6"
 ```
 
 Confirm the expected Dropbear SDK is active before starting an evaluation:
