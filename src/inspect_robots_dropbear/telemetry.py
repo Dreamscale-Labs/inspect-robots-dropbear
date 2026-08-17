@@ -107,14 +107,23 @@ def telemetry_row(
     result: PolicyStepResult,
     context: TrialContext,
     runtime: Mapping[str, object],
+    *,
+    step_interval_ms: float | None = None,
 ) -> dict[str, object]:
-    """Project one policy step into schema-v2 diagnostics without payload vectors."""
+    """Project one policy step into schema-v2 diagnostics without payload vectors.
+
+    `step_interval_ms` is the wall-clock gap since the previous policy step, and
+    so the only record of the rate the loop *actually* ran at. Nothing enforces
+    the commanded rate in this path, which makes the measured one worth keeping.
+    Absent on the first step of an episode, where there is no previous step.
+    """
     row: dict[str, object] = {
         "schema_version": 2,
         "run_id": context.run_id,
         "scene_id": context.scene_id,
         "epoch": context.epoch,
         "env_step": result.action_index,
+        "step_interval_ms": step_interval_ms,
         "logical_action_index": result.action_index,
         "observation_id": result.observation_id,
         "source_observation_id": result.source_observation_id,

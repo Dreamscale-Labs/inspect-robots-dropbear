@@ -1,6 +1,7 @@
 import atexit
 import json
 import threading
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -151,8 +152,9 @@ def test_reset_passes_default_startup_timeout_to_dropbear_connect(monkeypatch) -
         region: str,
         on_progress: object,
         startup_timeout: float,
+        control_hz: int,
     ) -> FakeRemotePolicy:
-        del region, on_progress
+        del region, on_progress, control_hz
         startup_timeouts.append(startup_timeout)
         return remote
 
@@ -175,8 +177,9 @@ def test_custom_startup_timeout_does_not_change_per_step_timeout(monkeypatch) ->
         region: str,
         on_progress: object,
         startup_timeout: float,
+        control_hz: int,
     ) -> FakeRemotePolicy:
-        del region, on_progress
+        del region, on_progress, control_hz
         startup_timeouts.append(startup_timeout)
         return remote
 
@@ -222,8 +225,9 @@ def test_reset_reuses_connection_but_isolates_same_instruction_episodes(monkeypa
         region: str,
         on_progress: object,
         startup_timeout: float,
+        control_hz: int,
     ) -> FakeRemotePolicy:
-        del startup_timeout
+        del startup_timeout, control_hz
         connects.append((model, region, on_progress))
         return remote
 
@@ -426,3 +430,150 @@ def test_atexit_fallback_uses_bounded_daemon_thread(monkeypatch) -> None:
     assert len(created) == 1
     assert created[0].daemon is True
     assert joins == [5.0]
+
+
+def _connect_recording(remote: "FakeRemotePolicy", sink: list[int]):
+    """A connect stub that records the command rate the adapter asked for."""
+
+    def connect(
+        _model: str,
+        *,
+        region: str,
+        on_progress: object,
+        startup_timeout: float,
+        control_hz: int,
+    ) -> FakeRemotePolicy:
+        del region, on_progress, startup_timeout
+        sink.append(control_hz)
+        return remote
+
+    return connect
+
+
+def test_control_hz_defaults_to_the_native_rate(monkeypatch) -> None:
+    """Catch a default that stops matching the checkpoint's own 30 Hz."""
+    remote = FakeRemotePolicy(step_result=step_result())
+    rates: list[int] = []
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        _connect_recording(remote, rates),
+    )
+    policy = dropbear_policy(model="dreamzero-yam")
+
+    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
+    chunk = policy.act(inspect_observation())
+
+    assert policy.control_hz == 30.0
+    assert policy.info.control_hz == 30.0
+    assert chunk.control_hz == 30.0
+    assert rates == [30]
+
+
+def test_control_hz_reaches_connect_info_and_chunk(monkeypatch) -> None:
+    """Catch a rate honored in one place but not the others.
+
+    All three matter and for different reasons: `connect` drives the SDK's
+    replan arithmetic, `info` is what the compatibility check reconciles against
+    the embodiment, and the chunk stamp is what lands in the EvalLog.
+    """
+    remote = FakeRemotePolicy(step_result=step_result())
+    rates: list[int] = []
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        _connect_recording(remote, rates),
+    )
+    policy = dropbear_policy(model="dreamzero-yam", control_hz=15)
+
+    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
+    chunk = policy.act(inspect_observation())
+
+    assert rates == [15]
+    assert policy.info.control_hz == 15.0
+    assert chunk.control_hz == 15.0
+
+
+@pytest.mark.parametrize("control_hz", [4, 31, 0, -15, 15.5, True, False, "15", float("nan")])
+def test_unusable_control_hz_fails_before_a_session_is_opened(
+    monkeypatch, control_hz: object
+) -> None:
+    """Catch an unusable rate that only surfaces after paying for a cold start."""
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        lambda *_args, **_kwargs: pytest.fail("invalid control_hz opened a connection"),
+    )
+    with pytest.raises(ValueError, match="control_hz"):
+        dropbear_policy(model="dreamzero-yam", control_hz=control_hz)
+
+
+def test_step_interval_is_recorded_and_absent_on_the_first_step(monkeypatch) -> None:
+    """Catch losing the only measurement of the rate the loop actually ran at."""
+    remote = FakeRemotePolicy(step_result=step_result())
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        _connect_recording(remote, []),
+    )
+    policy = dropbear_policy(model="dreamzero-yam")
+    policy.on_trial_start("spell", 0, "logs", "run-1")
+    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
+
+    for _ in range(3):
+        policy.act(inspect_observation())
+
+    rows = policy._telemetry_rows
+    assert len(rows) == 3
+    # Absent rather than zero-filled: there is no previous step to measure from.
+    assert "step_interval_ms" not in rows[0]
+    assert all(row["step_interval_ms"] > 0 for row in rows[1:])
+    assert all(row["runtime"]["commanded_control_hz"] == 30.0 for row in rows)
+
+
+def test_a_loop_running_at_the_wrong_rate_is_reported(monkeypatch) -> None:
+    """Catch silently planning against a rate the robot is not running at.
+
+    Nothing enforces the commanded rate in this path, so a mismatch has to be
+    observed to be known. This is the check that makes `control_hz` a claim the
+    adapter can contradict rather than one it simply trusts.
+    """
+    remote = FakeRemotePolicy(step_result=step_result())
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        _connect_recording(remote, []),
+    )
+    # Command 30 Hz, then step at 10 Hz (100 ms apart) by advancing the clock.
+    now_ns = [0]
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.time.monotonic_ns", lambda: now_ns[0]
+    )
+    policy = dropbear_policy(model="dreamzero-yam", control_hz=30)
+    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
+
+    with pytest.warns(RuntimeWarning, match="control_hz commands 30 Hz"):
+        for _ in range(25):
+            policy.act(inspect_observation())
+            now_ns[0] += 100_000_000
+
+    assert policy.observed_control_hz() == pytest.approx(10.0)
+
+
+def test_a_loop_running_at_the_commanded_rate_is_silent(monkeypatch) -> None:
+    """Catch a rate check noisy enough that people learn to ignore it."""
+    remote = FakeRemotePolicy(step_result=step_result())
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        _connect_recording(remote, []),
+    )
+    now_ns = [0]
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.time.monotonic_ns", lambda: now_ns[0]
+    )
+    policy = dropbear_policy(model="dreamzero-yam", control_hz=15)
+    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        for _ in range(25):
+            policy.act(inspect_observation())
+            # 15 Hz is 66.67 ms; jitter either side stays inside tolerance.
+            now_ns[0] += 66_667_000
+
+    assert policy.observed_control_hz() == pytest.approx(15.0, rel=1e-3)
