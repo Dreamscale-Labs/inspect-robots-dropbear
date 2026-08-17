@@ -7,7 +7,7 @@ name = "inspect-robots-dropbear"
 version = "0.1.5"
 description = "Inspect Robots policy adapter for Dropbear-hosted DreamZero-YAM"
 license = "Apache-2.0"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "NOTICE"]
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
