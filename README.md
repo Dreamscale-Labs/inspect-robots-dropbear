@@ -13,10 +13,8 @@ the adapter itself is open.
 
 ## Install and discover
 
-Install the pinned release:
-
 ```bash
-uv add "inspect-robots-dropbear @ git+https://github.com/Dreamscale-Labs/inspect-robots-dropbear.git@v0.1.6"
+uv add inspect-robots-dropbear
 ```
 
 Confirm the expected Dropbear SDK is active before starting an evaluation:
@@ -31,24 +29,23 @@ Verify that the entry point is available without opening a cloud session:
 inspect-robots list policies
 ```
 
-The output must contain `dropbear`. Robocurve keeps its existing registered task and embodiment;
-do not replace or rename either. Change only the policy selection in the existing evaluation
-command:
+The output must contain `dropbear`. Keep your existing registered task and embodiment; do not
+replace or rename either. Change only the policy selection in your existing evaluation command:
 
 ```bash
 --policy dropbear -P model=dreamzero-yam
 ```
 
 The default is YAM's qualified `async_latest` mode. Use `sampling=async_8` for the explicit
-compatibility/rollback path and `sampling=upstream_eval` only for the agreed open-loop dataset
+compatibility/rollback path and `sampling=upstream_eval` only for an open-loop dataset
 evaluation. The server keeps inference single-flight and latest-only. The SDK preserves two
 committed steps and applies its fixed absolute-target motion smoother only to the aligned
 `async_latest` suffix; the adapter exposes no custom scheduling, buffering, horizon, or smoothing
 knobs.
 
 The first connection has a 1,800-second startup budget by default so DreamZero-YAM can finish
-loading and warmup. Set `-P startup_timeout_s=<seconds>` to another finite positive value when an
-approved target needs a different startup budget. This does not change `timeout_s`, the existing
+loading and warmup. Set `-P startup_timeout_s=<seconds>` to another finite positive value when a
+target needs a different startup budget. This does not change `timeout_s`, the existing
 per-step action deadline, which remains 60 seconds by default.
 
 ## Observation and simulator contract
@@ -97,8 +94,8 @@ is not a substitute for explicit close.
 
 ## Physical YAM boundary
 
-This integration does not authorize an unattended physical run. For any physical YAM test,
-Robocurve owns and must supply its `inspect-robots-yam` package, validated limits, an attended
-operator gate, a working e-stop, and a rehearsed termination procedure. DreamScale's adapter calls
-neither the embodiment nor hardware directly, and compatibility or serving evidence must not be
-reported as physical safety or effectiveness evidence.
+This integration does not authorize an unattended physical run. For any physical YAM test, you own
+and must supply the embodiment package for your arm, validated limits, an attended operator gate, a
+working e-stop, and a rehearsed termination procedure. This adapter calls neither the embodiment nor
+hardware directly, and compatibility or serving evidence must not be reported as physical safety or
+effectiveness evidence.
