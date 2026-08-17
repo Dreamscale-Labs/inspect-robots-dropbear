@@ -1,0 +1,68 @@
+name: publish
+
+# Release tags only. The tag must match the version in pyproject.toml and point
+# at a commit contained in main, so a release can never ship code that is not on
+# the default branch.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify tag, version, and main ancestry
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          git merge-base --is-ancestor "${GITHUB_SHA}" origin/main || {
+            echo "::error::release tags must point to a commit contained in origin/main"
+            exit 1
+          }
+          uv run --no-project python - "$TAG_NAME" <<'PY'
+          import pathlib, sys, tomllib
+          tag = sys.argv[1]
+          project = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]
+          expected = f"v{project['version']}"
+          if tag != expected:
+              raise SystemExit(f"tag {tag!r} does not match {expected!r}")
+          # PyPI rejects direct references, and a git dependency would also make
+          # the published package uninstallable for anyone without repo access.
+          for dep in project.get("dependencies", []):
+              if " @ " in dep:
+                  raise SystemExit(f"direct reference is not publishable: {dep}")
+          print(f"releasing {project['name']} {project['version']}")
+          PY
+
+      - run: uv build
+      - run: uvx --from twine twine check dist/*
+      - run: uv run --no-project --with pytest --with . pytest -q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: astral-sh/setup-uv@v5
+      - run: uv publish --check-url https://pypi.org/simple/ dist/*

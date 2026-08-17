@@ -374,16 +374,20 @@ wheels = [
 
 [[package]]
 name = "inspect-robots"
-version = "0.53.1.dev1+g3990c6f0e"
-source = { git = "https://github.com/robocurve/inspect-robots.git?rev=3990c6f0e4f7560602aa209066029424ea964261#3990c6f0e4f7560602aa209066029424ea964261" }
+version = "0.53.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/f0/38/11b1df080c859656b9566f3389cafa75f9bf653a670a4fdce7d41d084820/inspect_robots-0.53.1.tar.gz", hash = "sha256:713219fe44692b629db539507867b117d944eccc6f872f72b4f89a190cf4067f", size = 494523, upload-time = "2026-08-14T18:17:35Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ea/7d/9934daa6f0528e1d9a1d9cdc0e86d59ed296b4411c6431f409b31b25e297/inspect_robots-0.53.1-py3-none-any.whl", hash = "sha256:411c9b85b3a8a3b32e6bd3c2236849718e01d8f48ccfdd9ba326eea314a27041", size = 189978, upload-time = "2026-08-14T18:17:33.377Z" },
+]
 
 [[package]]
 name = "inspect-robots-dropbear"
-version = "0.1.5"
+version = "0.1.7"
 source = { editable = "." }
 dependencies = [
     { name = "dropbear", extra = ["dreamzero"] },
@@ -402,7 +406,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "dropbear", extras = ["dreamzero"], specifier = "==0.1.0a9" },
-    { name = "inspect-robots", git = "https://github.com/robocurve/inspect-robots.git?rev=3990c6f0e4f7560602aa209066029424ea964261" },
+    { name = "inspect-robots", specifier = ">=0.53.1,<0.54" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
     { name = "numpy", specifier = ">=2.0,<3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
