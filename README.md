@@ -7,7 +7,7 @@ logical episodes.
 
 This package is intentionally private and has no public license declaration yet.
 It supports Python 3.11 through 3.13 and requires the immutable
-`dropbear[dreamzero]==0.1.0a8` SDK release.
+`dropbear[dreamzero]==0.1.0a9` SDK release.
 
 ## Install and discover
 
@@ -20,7 +20,7 @@ uv add "inspect-robots-dropbear @ git+ssh://git@github.com/Dreamscale-Labs/inspe
 Confirm the expected Dropbear SDK is active before starting an evaluation:
 
 ```bash
-python -c 'import dropbear; assert dropbear.__version__ == "0.1.0a8"'
+python -c 'import dropbear; assert dropbear.__version__ == "0.1.0a9"'
 ```
 
 Verify that the entry point is available without opening a cloud session:
@@ -58,7 +58,7 @@ The existing task and embodiment must provide all of the following on every poli
   right-gripper order; and
 - Inspect's integer `extra["env_step"]`, starting at zero and advancing once per delivered action.
 
-The adapter declares a 14-dimensional raw absolute-joint action at 15 Hz. It returns exactly one
+The adapter declares a 14-dimensional raw absolute-joint action at 30 Hz. It returns exactly one
 action per Inspect `act()` call while Dropbear owns DreamZero's managed action buffering. Simulator
 compatibility means matching those camera, state, action, clock, and rate contracts; it does not by
 itself establish physics parity, task success, or physical-robot safety.

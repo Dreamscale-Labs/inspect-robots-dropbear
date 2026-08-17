@@ -158,7 +158,7 @@ class FakeRemote:
     transport_mode: str = "quic"
     fallback_reason: str | None = None
     runtime_contract: RuntimeContract = RuntimeContract(
-        action_hz=15.0,
+        action_hz=30.0,
         chunk_size=24,
         action_dim=14,
         action_space="raw_absolute_joint",
@@ -177,7 +177,7 @@ class FakeRemote:
 def test_runtime_identity_uses_only_explicitly_whitelisted_fields(monkeypatch) -> None:
     """Catch broad remote serialization that would leak credentials or payloads."""
     package_versions = {
-        "dropbear": "0.1.0a8",
+        "dropbear": "0.1.0a9",
         "inspect-robots": "0.1.0",
         "inspect-robots-dropbear": "0.1.3",
     }
@@ -194,7 +194,7 @@ def test_runtime_identity_uses_only_explicitly_whitelisted_fields(monkeypatch) -
     assert identity["runtime_contract"]["chunk_size"] == 24
     assert identity["resolved_optimization_config"]["backend"] == "pytorch"
     assert identity["packages"] == {
-        "dropbear": "0.1.0a8",
+        "dropbear": "0.1.0a9",
         "inspect_robots": "0.1.0",
         "inspect_robots_dropbear": "0.1.3",
     }

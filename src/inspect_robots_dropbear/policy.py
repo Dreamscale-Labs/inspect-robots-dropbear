@@ -37,6 +37,13 @@ from inspect_robots_dropbear.telemetry import (
 # Kept module-visible so discovery tests can prove construction does not call connect().
 dropbear: Any = _dropbear
 
+# DreamZero YAM native control contract: 30 Hz, 24 consecutive actions (0.8 s).
+# Stated explicitly rather than read back from the SDK runtime contract on purpose.
+# The pinned SDK now agrees, but a pin bump is a version change and this is a
+# rate the qualification host must not be able to drift on silently.
+YAM_CONTROL_HZ = 30.0
+YAM_ACTION_HORIZON = 24
+
 YAM_DIM_LABELS = (
     "left_j0",
     "left_j1",
@@ -119,9 +126,9 @@ class DropbearPolicy(PolicyBase):
                 ),
                 state=StateSpec(fields=(StateField("joint_pos", (14,), unit=""),)),
             ),
-            control_hz=15.0,
+            control_hz=YAM_CONTROL_HZ,
         )
-        self.config = PolicyConfig(action_horizon=24, replan_interval=1)
+        self.config = PolicyConfig(action_horizon=YAM_ACTION_HORIZON, replan_interval=1)
         self._atexit_handler = self._atexit_close
         atexit.register(self._atexit_handler)
 
@@ -189,7 +196,7 @@ class DropbearPolicy(PolicyBase):
         }
         return ActionChunk(
             actions=[Action(data=np.asarray(result.action, dtype=np.float64), meta=action_meta)],
-            control_hz=15.0,
+            control_hz=YAM_CONTROL_HZ,
             inference_latency_s=wall_s,
             meta={"dropbear_join_key": join_key},
         )

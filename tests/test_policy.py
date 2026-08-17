@@ -25,7 +25,7 @@ class FakeRemotePolicy:
     transport_mode = "quic"
     fallback_reason = None
     runtime_contract = RuntimeContract(
-        action_hz=15.0,
+        action_hz=30.0,
         chunk_size=24,
         action_dim=14,
         action_space="raw_absolute_joint",
@@ -109,7 +109,7 @@ def test_factory_constructs_only_dreamzero_yam_without_connecting(monkeypatch) -
     assert isinstance(policy, Policy)
     assert policy.info.name == "dropbear"
     assert policy.info.action_space.shape == (14,)
-    assert policy.info.control_hz == 15.0
+    assert policy.info.control_hz == 30.0
     assert policy.config == PolicyConfig(action_horizon=24, replan_interval=1)
     assert policy.sampling == "async_latest"
 
@@ -280,7 +280,7 @@ def test_act_uses_env_step_and_returns_one_joinable_action(monkeypatch, stalled,
         "dropbear_observation_id": 11,
         "dropbear_step": 8,
     }
-    assert chunk.control_hz == 15.0
+    assert chunk.control_hz == 30.0
     assert chunk.inference_latency_s is not None
     assert chunk.inference_latency_s >= 0.0
     assert chunk.meta == {"dropbear_join_key": "2:8"}
