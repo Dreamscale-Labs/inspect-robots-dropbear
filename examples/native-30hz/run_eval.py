@@ -28,11 +28,9 @@ TASK_NAME = "your-task"
 EMBODIMENT_NAME = "your-embodiment"
 LOG_DIR = "logs"
 
-# Set this to the rate your embodiment actually achieves, not the one you wish
-# it did. 30 Hz is DreamZero-YAM's native rate and the default; 5 to 30 is
-# accepted. Nothing enforces it -- Inspect adds no pacing, so your embodiment is
-# the clock. The rate you declare is what the action scheduler plans against, so
-# a wrong one degrades replanning while the run still looks healthy.
+# DreamZero-YAM is currently qualified at exactly 30 Hz. Nothing enforces the
+# actual loop cadence: Inspect adds no pacing, so the embodiment must deliver
+# 30 Hz. The adapter records measured step intervals and warns on divergence.
 CONTROL_HZ = 30
 
 

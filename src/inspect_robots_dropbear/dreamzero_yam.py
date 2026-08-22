@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Mapping
 from typing import Any, cast
 
@@ -13,20 +14,51 @@ from dropbear.dreamzero_yam import DreamZeroYamObservation  # type: ignore[impor
 from inspect_robots.types import Observation
 
 _CAMERA_NAMES = ("top_cam", "left_cam", "right_cam")
+MAX_CAPTURE_AGE_S = 5.0
+MAX_CAPTURE_FUTURE_S = 1.0
+MAX_CAMERA_SKEW_S = 0.050
 dropbear: Any = _dropbear
 
 
 def _seconds_to_ns(value: object, *, camera: str) -> int:
-    """Convert a finite, nonnegative capture time to integer nanoseconds."""
+    """Convert finite Unix-epoch capture seconds to integer nanoseconds."""
     if isinstance(value, (bool, np.bool_)):
-        raise ValueError(f"image_times[{camera!r}] must be finite monotonic seconds")
+        raise ValueError(f"image_times[{camera!r}] must be finite Unix-epoch seconds")
     try:
         seconds = float(cast(Any, value))
     except (TypeError, ValueError) as error:
-        raise ValueError(f"image_times[{camera!r}] must be finite monotonic seconds") from error
+        raise ValueError(
+            f"image_times[{camera!r}] must be finite Unix-epoch seconds"
+        ) from error
     if not math.isfinite(seconds) or seconds < 0.0:
-        raise ValueError(f"image_times[{camera!r}] must be finite monotonic seconds")
+        raise ValueError(f"image_times[{camera!r}] must be finite Unix-epoch seconds")
     return round(seconds * 1_000_000_000)
+
+
+def _capture_times_ns(observation: Observation) -> tuple[int, int, int]:
+    """Validate source capture times before any inference request is possible."""
+    now_s = time.time()
+    seconds: list[float] = []
+    times_ns: list[int] = []
+    for name in _CAMERA_NAMES:
+        raw = _mapping_value(observation.image_times, name, field="image_times")
+        converted = _seconds_to_ns(raw, camera=name)
+        capture_s = converted / 1_000_000_000
+        if capture_s < now_s - MAX_CAPTURE_AGE_S:
+            raise ValueError(
+                f"image_times[{name!r}] is stale; source capture time must be within "
+                f"{MAX_CAPTURE_AGE_S:g} seconds"
+            )
+        if capture_s > now_s + MAX_CAPTURE_FUTURE_S:
+            raise ValueError(
+                f"image_times[{name!r}] is implausibly future; source capture time "
+                f"must not exceed wall clock by more than {MAX_CAPTURE_FUTURE_S:g} second"
+            )
+        seconds.append(capture_s)
+        times_ns.append(converted)
+    if max(seconds) - min(seconds) > MAX_CAMERA_SKEW_S:
+        raise ValueError("camera skew exceeds the 50 ms DreamZero-YAM limit")
+    return cast(tuple[int, int, int], tuple(times_ns))
 
 
 def _mapping_value(mapping: Mapping[str, object], key: str, *, field: str) -> object:
@@ -59,12 +91,7 @@ def to_dreamzero_yam(observation: Observation) -> DreamZeroYamObservation:
     frames = tuple(
         _mapping_value(observation.images, name, field="images") for name in _CAMERA_NAMES
     )
-    times = tuple(
-        _seconds_to_ns(
-            _mapping_value(observation.image_times, name, field="image_times"), camera=name
-        )
-        for name in _CAMERA_NAMES
-    )
+    times = _capture_times_ns(observation)
     return dropbear.dreamzero_yam.observe(
         top_frame=frames[0],
         left_frame=frames[1],
