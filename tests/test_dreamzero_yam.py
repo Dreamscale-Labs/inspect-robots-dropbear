@@ -6,6 +6,16 @@ from inspect_robots.types import Observation
 
 from inspect_robots_dropbear.dreamzero_yam import to_dreamzero_yam
 
+CAPTURE_EPOCH_S = 1_700_000_000.0
+
+
+@pytest.fixture(autouse=True)
+def fixed_wall_clock(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.dreamzero_yam.time.time",
+        lambda: CAPTURE_EPOCH_S + 0.010,
+    )
+
 
 class RefusesArrayConversion:
     def __array__(self, *args: object, **kwargs: object) -> np.ndarray:
@@ -26,7 +36,11 @@ def valid_observation() -> Observation:
         },
         state={"joint_pos": np.arange(14, dtype=np.float64)},
         instruction="spell NEURIPS",
-        image_times={"top_cam": 10.0, "left_cam": 10.001, "right_cam": 10.002},
+        image_times={
+            "top_cam": CAPTURE_EPOCH_S,
+            "left_cam": CAPTURE_EPOCH_S + 0.001,
+            "right_cam": CAPTURE_EPOCH_S + 0.002,
+        },
         extra={"env_step": 8},
     )
 
@@ -35,7 +49,11 @@ def test_to_dreamzero_yam_maps_cameras_times_and_packed_state() -> None:
     """Catch a camera, timestamp, or joint-order mapping mismatch at the SDK boundary."""
     mapped = to_dreamzero_yam(valid_observation())
 
-    assert mapped.camera_capture_times_ns == (10_000_000_000, 10_001_000_000, 10_002_000_000)
+    assert mapped.camera_capture_times_ns == (
+        round(CAPTURE_EPOCH_S * 1_000_000_000),
+        round((CAPTURE_EPOCH_S + 0.001) * 1_000_000_000),
+        round((CAPTURE_EPOCH_S + 0.002) * 1_000_000_000),
+    )
     assert mapped.left_joint_positions == (0.0, 1.0, 2.0, 3.0, 4.0, 5.0)
     assert mapped.left_gripper == 6.0
     assert mapped.right_joint_positions == (7.0, 8.0, 9.0, 10.0, 11.0, 12.0)
@@ -49,7 +67,11 @@ def test_to_dreamzero_yam_maps_cameras_times_and_packed_state() -> None:
             Observation(
                 images={"left_cam": frame(2), "right_cam": frame(3)},
                 state={"joint_pos": np.arange(14, dtype=np.float64)},
-                image_times={"top_cam": 10.0, "left_cam": 10.001, "right_cam": 10.002},
+                image_times={
+                    "top_cam": CAPTURE_EPOCH_S,
+                    "left_cam": CAPTURE_EPOCH_S + 0.001,
+                    "right_cam": CAPTURE_EPOCH_S + 0.002,
+                },
             ),
             "missing images['top_cam']",
         ),
@@ -57,7 +79,10 @@ def test_to_dreamzero_yam_maps_cameras_times_and_packed_state() -> None:
             Observation(
                 images={"top_cam": frame(1), "left_cam": frame(2), "right_cam": frame(3)},
                 state={"joint_pos": np.arange(14, dtype=np.float64)},
-                image_times={"left_cam": 10.001, "right_cam": 10.002},
+                image_times={
+                    "left_cam": CAPTURE_EPOCH_S + 0.001,
+                    "right_cam": CAPTURE_EPOCH_S + 0.002,
+                },
             ),
             "missing image_times['top_cam']",
         ),
@@ -65,7 +90,11 @@ def test_to_dreamzero_yam_maps_cameras_times_and_packed_state() -> None:
             Observation(
                 images={"top_cam": frame(1), "left_cam": frame(2), "right_cam": frame(3)},
                 state={},
-                image_times={"top_cam": 10.0, "left_cam": 10.001, "right_cam": 10.002},
+                image_times={
+                    "top_cam": CAPTURE_EPOCH_S,
+                    "left_cam": CAPTURE_EPOCH_S + 0.001,
+                    "right_cam": CAPTURE_EPOCH_S + 0.002,
+                },
             ),
             "missing state['joint_pos']",
         ),
@@ -90,7 +119,7 @@ def test_to_dreamzero_yam_rejects_invalid_camera_time(value: object) -> None:
     )
 
     with pytest.raises(
-        ValueError, match=r"image_times\['top_cam'\] must be finite monotonic seconds"
+        ValueError, match=r"image_times\['top_cam'\] must be finite Unix-epoch seconds"
     ):
         to_dreamzero_yam(observation)
 
@@ -101,10 +130,44 @@ def test_to_dreamzero_yam_rejects_camera_skew_over_fifty_ms() -> None:
     observation = Observation(
         images=observation.images,
         state=observation.state,
-        image_times={"top_cam": 10.0, "left_cam": 10.001, "right_cam": 10.050_000_001},
+        image_times={
+            "top_cam": CAPTURE_EPOCH_S,
+            "left_cam": CAPTURE_EPOCH_S + 0.001,
+            "right_cam": CAPTURE_EPOCH_S + 0.051,
+        },
     )
 
     with pytest.raises(ValueError, match="camera skew exceeds the 50 ms DreamZero-YAM limit"):
+        to_dreamzero_yam(observation)
+
+
+def test_to_dreamzero_yam_rejects_stale_camera_time() -> None:
+    observation = valid_observation()
+    observation = Observation(
+        images=observation.images,
+        state=observation.state,
+        image_times={
+            **observation.image_times,
+            "top_cam": CAPTURE_EPOCH_S - 5.001,
+        },
+    )
+
+    with pytest.raises(ValueError, match=r"image_times\['top_cam'\] is stale"):
+        to_dreamzero_yam(observation)
+
+
+def test_to_dreamzero_yam_rejects_implausibly_future_camera_time() -> None:
+    observation = valid_observation()
+    observation = Observation(
+        images=observation.images,
+        state=observation.state,
+        image_times={
+            **observation.image_times,
+            "top_cam": CAPTURE_EPOCH_S + 1.011,
+        },
+    )
+
+    with pytest.raises(ValueError, match=r"image_times\['top_cam'\] is implausibly future"):
         to_dreamzero_yam(observation)
 
 

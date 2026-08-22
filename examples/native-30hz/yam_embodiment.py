@@ -8,10 +8,10 @@ The compatibility check runs before the first reset and compares field by field
 against what the adapter declares. Cameras, state, and the action space are hard
 errors, so a mismatch there fails the run rather than degrading it quietly.
 
-`control_hz` is the exception, and worth understanding before you change it.
-Inspect's rollout imposes no wall-clock rate of its own, so a rate disagreement
-is only a *warning* and the run proceeds. Whatever you declare here, the rate the
-robot actually runs at is however fast `step()` returns. See CONTROL_HZ below.
+Inspect's rollout imposes no wall-clock rate of its own, so the robot actually
+runs at however fast `step()` returns. DreamZero-YAM is currently qualified at
+exactly 30 Hz; a measured disagreement warns and the run proceeds. See
+CONTROL_HZ below.
 """
 
 from __future__ import annotations
@@ -46,15 +46,11 @@ ACTION_DIM = 14
 FRAME_HEIGHT = 360
 FRAME_WIDTH = 640
 
-# The rate this embodiment actually steps at. DreamZero-YAM's native rate is
-# 30 Hz; the adapter accepts any whole rate from 5 to 30 via
-# `-P control_hz=...`, which stretches the 24-action chunk in time rather than
-# resampling it (0.8 s at 30 Hz, 1.6 s at 15 Hz).
-#
-# Nothing enforces agreement between the two, so keep them equal on purpose: run
-# the policy with `control_hz` set to whatever rate your loop really achieves.
-# The adapter measures the gap between steps and says so if they diverge, but it
-# cannot fix it -- see `_pace` below for who is responsible for the clock.
+# The rate this embodiment actually steps at. DreamZero-YAM is currently
+# qualified at exactly 30 Hz and the adapter rejects any other declared rate
+# before connecting. The adapter measures the gap between steps and warns if
+# the actual loop diverges, but it cannot fix it -- see `_pace` below for who is
+# responsible for the clock.
 CONTROL_HZ = 30.0
 EMBODIMENT_NAME = "your-yam"
 TASK_NAME = "your-task"
@@ -73,7 +69,8 @@ class YamEmbodiment(EmbodimentBase):
         # Mirrors what the adapter declares. Cameras, state, and the action
         # space are compared field by field before the first reset and a
         # mismatch is a hard error, so guessing here fails the run rather than
-        # degrading it. `control_hz` only warns -- see the module docstring.
+        # degrading it. Measured cadence drift only warns -- see the module
+        # docstring.
         limit = np.full(ACTION_DIM, np.pi, dtype=np.float64)
         return EmbodimentInfo(
             name=EMBODIMENT_NAME,
@@ -103,7 +100,8 @@ class YamEmbodiment(EmbodimentBase):
     def _observation(self, instruction: str) -> Observation:
         top, left, right, capture_times = self._robot.frames()
         # `state` is a mapping keyed by the declared StateField, not a bare
-        # array, and the times are seconds rather than nanoseconds.
+        # array. Camera times are per-frame Unix-epoch nanoseconds from the
+        # capture backend, converted to epoch seconds for Inspect.
         return Observation(
             images={"top_cam": top, "left_cam": left, "right_cam": right},
             state={"joint_pos": self._robot.state.astype(np.float64)},

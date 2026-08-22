@@ -8,42 +8,23 @@ for the full integration reference.
 
 | directory | command rate | when to start here |
 | --- | --- | --- |
-| [`native-30hz/`](native-30hz/) | 30 Hz, the model's own rate | Your round trip to `us-west-2` is short, or you want the most responsive control the model supports |
-| [`reduced-15hz/`](reduced-15hz/) | 15 Hz | You are far from the region, or your first run comes back mostly `hold` |
+| [`native-30hz/`](native-30hz/) | exactly 30 Hz | The only currently qualified DreamZero-YAM cadence |
 
-Both directories contain the same two files, differing only in the rate:
+The directory contains two files:
 
 | file | what it is |
 | --- | --- |
 | `run_eval.py` | A complete evaluation: resolve the policy, run, close, then check where the actions came from |
 | `yam_embodiment.py` | The observation and action contract, as a working skeleton |
 
-## Which rate to use
+## Cadence boundary
 
-Both of these are real runs against production from Sydney, same code, same
-recorded input, same day — only the rate differs:
-
-| | 30 Hz | 15 Hz |
-| --- | --- | --- |
-| Chunk horizon | 0.8 s | **1.6 s** |
-| Model-sourced actions | 39 / 120 | **583 / 600** |
-| Holds (buffer underruns) | **81 (67.5%)** | **17 (2.8%)** |
-| GPU inference p50 | 333 ms | 321 ms |
-| Observation-to-action p50 | 644 ms | 594 ms |
-
-The latency did not improve — that is set by distance and by the GPU, and 15 Hz
-does not touch either. What changed is that a 24-action chunk now covers 1.6 s
-of wall clock instead of 0.8 s, while the round trip stayed near 600 ms. At
-30 Hz the buffer drains before its replacement lands and the arm holds; at 15 Hz
-it does not.
-
-Nothing is dropped or interpolated when you lower the rate. Every emitted action
-still executes, just spread over more time, so the trajectory is the one the
-model produced.
-
-**A lower rate is not free.** The arm reacts to a new observation half as often,
-which matters for anything contact-rich or fast. Prefer 30 Hz if you can hold it,
-and treat a high hold fraction as the signal to drop down — not the default.
+DreamZero-YAM's current action/data timebase is exactly 30 Hz. It is not the
+model-inference call rate and it is not the I2RT driver's internal servo loop.
+Earlier 5–30 Hz examples only changed the action scheduler's declared rate; they
+did not prove a dynamic observation-to-action contract and are intentionally no
+longer offered. A high hold fraction is a diagnostic to investigate, not a
+reason to silently stretch the learned trajectory.
 
 ## Setup
 

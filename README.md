@@ -45,10 +45,11 @@ evaluation. The server keeps inference single-flight and latest-only. The SDK pr
 committed steps and applies its fixed absolute-target motion smoother only to the aligned
 `async_latest` suffix; the adapter exposes no custom buffering, horizon, or smoothing knobs.
 
-`-P control_hz=<hz>` sets the rate the chunk is executed at, defaulting to DreamZero-YAM's native
-30 Hz and accepting any whole rate from 5 to 30. The whole chunk is executed at whatever rate you
-choose, so it stretches in time rather than being resampled: 24 actions span 0.8 s at 30 Hz and
-1.6 s at 15 Hz, with nothing dropped or interpolated.
+DreamZero-YAM is qualified at exactly 30 Hz. `-P control_hz=30` is accepted for explicitness;
+every other value fails during policy construction, before a paid session is opened. The model's
+30 Hz action/data timebase is distinct from inference frequency and the robot driver's internal
+servo loop. Dynamic cadence must not be advertised until observation production, temporal
+admission, inference, and action execution consume one resolved rate end to end.
 
 `-P keep_warm_s=<seconds>` holds the session after close (0-3600, default 0) so the next run reclaims
 it instead of starting cold -- 147s against 23s, measured back to back. **A hold is billed at the full
@@ -57,9 +58,9 @@ while iterating; leave it at 0 for unattended runs.
 
 **Nothing enforces this rate.** Inspect's rollout adds no wall-clock pacing, so the real rate is
 however fast your embodiment's `step()` returns; `control_hz` is what the action scheduler plans
-against. Set it to the rate you actually achieve. The adapter measures the gap between policy steps,
-records it as `step_interval_ms` in the sidecar, and warns once if the measured rate diverges from
-the commanded one by more than 25%.
+against. Pace the embodiment at 30 Hz. The adapter measures the gap between policy steps, records it
+as `step_interval_ms` in the sidecar, and warns once if the measured rate diverges from 30 Hz by
+more than 25%.
 
 The first connection has a 1,800-second startup budget by default so DreamZero-YAM can finish
 loading and warmup. Set `-P startup_timeout_s=<seconds>` to another finite positive value when a
@@ -70,7 +71,8 @@ per-step action deadline, which remains 60 seconds by default.
 
 The existing task and embodiment must provide all of the following on every policy step:
 
-- `top_cam`, `left_cam`, and `right_cam` uint8 images, each with a real monotonic capture time;
+- `top_cam`, `left_cam`, and `right_cam` uint8 images, each with its own real Unix-epoch capture
+  time in seconds (not a process-monotonic clock and not one synthetic shared time);
 - finite packed `joint_pos` state with shape `(14,)` in YAM left-arm, left-gripper, right-arm,
   right-gripper order; and
 - Inspect's integer `extra["env_step"]`, starting at zero and advancing once per delivered action.
@@ -91,7 +93,8 @@ adds one atomic diagnostics sidecar and records its relative path at
 dropbear/<run_id>/<sanitized-scene-id>-e<epoch>.jsonl
 ```
 
-Schema-v2 sidecar rows contain serving identity, source control tick, source camera
+Schema-v2 sidecar rows contain package versions, session and serving identity, timestamp source,
+commanded cadence, model/hold action source, source control tick, source camera
 capture-to-execution age, timing, accurate maximum overlapping-target revision, chunk/merge
 disposition, and the same Inspect environment step. Join them to the EvalLog, action JSONL, or
 Rerun timeline using `env_step`; use `join_key`
@@ -101,7 +104,8 @@ duplicate action vectors, images, credentials, authorization material, certifica
 ## Deterministic cleanup
 
 Evaluation owners must call `policy.close()` in `finally` after the run, even when Inspect reports an
-error or cancellation. Then verify that the just-used session is gone:
+error or cancellation. `close()` is synchronous and idempotent, and `policy.session_id` remains
+readable after close so the caller can verify that the exact session is gone:
 
 ```bash
 dropbear sessions list

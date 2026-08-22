@@ -1,6 +1,7 @@
 import atexit
 import json
 import threading
+import time
 import warnings
 from pathlib import Path
 from typing import Any
@@ -77,7 +78,11 @@ def inspect_observation(*, env_step: object = 8) -> Observation:
         images={"top_cam": frame, "left_cam": frame, "right_cam": frame},
         state={"joint_pos": np.arange(14, dtype=np.float64)},
         instruction="spell NEURIPS",
-        image_times={"top_cam": 10.0, "left_cam": 10.001, "right_cam": 10.002},
+        image_times={
+            "top_cam": time.time(),
+            "left_cam": time.time() + 0.001,
+            "right_cam": time.time() + 0.002,
+        },
         extra={"env_step": env_step},
     )
 
@@ -263,6 +268,29 @@ def test_close_before_reset_is_offline_and_idempotent(monkeypatch) -> None:
     policy.close()
 
 
+def test_session_identity_is_read_only_and_survives_synchronous_close(monkeypatch) -> None:
+    """Let the composition runner verify cleanup after the remote is released."""
+    remote = FakeRemotePolicy()
+    monkeypatch.setattr(
+        "inspect_robots_dropbear.policy.dropbear.connect",
+        lambda *_args, **_kwargs: remote,
+    )
+    policy = dropbear_policy(model="dreamzero-yam")
+
+    assert policy.session_id is None
+    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
+    assert policy.session_id == "session-123"
+
+    with pytest.raises(AttributeError):
+        policy.session_id = "different"
+
+    policy.close()
+    policy.close()
+
+    assert policy.session_id == "session-123"
+    assert remote.close_calls == 1
+
+
 @pytest.mark.parametrize(("stalled", "source"), [(False, "model"), (True, "hold")])
 def test_act_uses_env_step_and_returns_one_joinable_action(monkeypatch, stalled, source) -> None:
     """Catch a shifted control index, leaked chunk, or wrong action-source marker."""
@@ -391,6 +419,10 @@ def test_telemetry_records_runtime_transport_state_at_action_time(
     assert row["runtime"]["transport_mode"] == "relay"
     assert row["runtime"]["fallback_reason"] == "quic_result_timeout"
     assert row["runtime"]["sampling"] == "async_latest"
+    assert row["runtime"]["capture_time_source"] == "embodiment_unix_epoch_seconds"
+    assert row["runtime"]["commanded_control_hz"] == 30.0
+    assert row["runtime"]["session_id"] == "session-123"
+    assert row["action_source"] == "model"
 
 
 def test_explicit_close_unregisters_single_atexit_handler(monkeypatch) -> None:
@@ -475,30 +507,10 @@ def test_control_hz_defaults_to_the_native_rate(monkeypatch) -> None:
     assert rates == [30]
 
 
-def test_control_hz_reaches_connect_info_and_chunk(monkeypatch) -> None:
-    """Catch a rate honored in one place but not the others.
-
-    All three matter and for different reasons: `connect` drives the SDK's
-    replan arithmetic, `info` is what the compatibility check reconciles against
-    the embodiment, and the chunk stamp is what lands in the EvalLog.
-    """
-    remote = FakeRemotePolicy(step_result=step_result())
-    rates: list[int] = []
-    monkeypatch.setattr(
-        "inspect_robots_dropbear.policy.dropbear.connect",
-        _connect_recording(remote, rates),
-    )
-    policy = dropbear_policy(model="dreamzero-yam", control_hz=15)
-
-    policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
-    chunk = policy.act(inspect_observation())
-
-    assert rates == [15]
-    assert policy.info.control_hz == 15.0
-    assert chunk.control_hz == 15.0
-
-
-@pytest.mark.parametrize("control_hz", [4, 31, 0, -15, 15.5, True, False, "15", float("nan")])
+@pytest.mark.parametrize(
+    "control_hz",
+    [4, 5, 15, 29, 31, 0, -15, 15.5, True, False, "30", float("nan")],
+)
 def test_unusable_control_hz_fails_before_a_session_is_opened(
     monkeypatch, control_hz: object
 ) -> None:
@@ -507,7 +519,7 @@ def test_unusable_control_hz_fails_before_a_session_is_opened(
         "inspect_robots_dropbear.policy.dropbear.connect",
         lambda *_args, **_kwargs: pytest.fail("invalid control_hz opened a connection"),
     )
-    with pytest.raises(ValueError, match="control_hz"):
+    with pytest.raises(ValueError, match="requires exactly 30 Hz"):
         dropbear_policy(model="dreamzero-yam", control_hz=control_hz)
 
 
@@ -572,17 +584,17 @@ def test_a_loop_running_at_the_commanded_rate_is_silent(monkeypatch) -> None:
     monkeypatch.setattr(
         "inspect_robots_dropbear.policy.time.monotonic_ns", lambda: now_ns[0]
     )
-    policy = dropbear_policy(model="dreamzero-yam", control_hz=15)
+    policy = dropbear_policy(model="dreamzero-yam", control_hz=30)
     policy.reset(Scene(id="spell", instruction="spell NEURIPS"))
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         for _ in range(25):
             policy.act(inspect_observation())
-            # 15 Hz is 66.67 ms; jitter either side stays inside tolerance.
-            now_ns[0] += 66_667_000
+            # 30 Hz is 33.33 ms; jitter either side stays inside tolerance.
+            now_ns[0] += 33_333_000
 
-    assert policy.observed_control_hz() == pytest.approx(15.0, rel=1e-3)
+    assert policy.observed_control_hz() == pytest.approx(30.0, rel=1e-3)
 
 
 def test_keep_warm_defaults_to_off(monkeypatch) -> None:

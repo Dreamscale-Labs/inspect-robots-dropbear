@@ -46,16 +46,11 @@ dropbear: Any = _dropbear
 YAM_CONTROL_HZ = 30.0
 YAM_ACTION_HORIZON = 24
 
-# Command rates a caller may ask for. The whole emitted chunk is executed at the
-# commanded rate, so it stretches in time rather than being resampled: 24 actions
-# span 0.8 s at 30 Hz and 1.6 s at 15 Hz, with nothing dropped or interpolated.
-#
-# Restated here rather than imported from dropbear.policy.runtime.contract for
-# the same reason the native rate is: that module is not public API. `connect`
-# validates again and remains the authority; this check exists so an unusable
-# rate fails during construction, before a session is opened.
-MIN_CONTROL_HZ = 5
-MAX_CONTROL_HZ = 30
+# DreamZero-YAM currently has one qualified end-to-end timebase. The SDK can
+# represent other rates, but observation production, temporal admission,
+# inference, and action execution have not yet been qualified as one dynamic
+# contract. Fail offline rather than opening a paid session with a misleading
+# partial override.
 
 # Seconds a closed session may be held warm for the next run to reclaim. The
 # control plane validates 0..3600 and rejects anything outside it at session
@@ -97,19 +92,18 @@ def _resolve_control_hz(requested: float | None) -> float:
 
     if requested is None:
         return YAM_CONTROL_HZ
-    if isinstance(requested, bool) or not isinstance(requested, Real):
-        raise ValueError("control_hz must be a whole number of hertz")
-    if not math.isfinite(float(requested)) or not float(requested).is_integer():
-        raise ValueError("control_hz must be a whole number of hertz")
-    resolved = int(requested)
-    if not MIN_CONTROL_HZ <= resolved <= MAX_CONTROL_HZ:
+    valid = (
+        not isinstance(requested, bool)
+        and isinstance(requested, Real)
+        and math.isfinite(float(requested))
+        and float(requested) == YAM_CONTROL_HZ
+    )
+    if not valid:
         raise ValueError(
-            f"control_hz {resolved} is out of range; supported rates are "
-            f"{MIN_CONTROL_HZ} to {MAX_CONTROL_HZ} Hz inclusive. The emitted "
-            f"chunk is executed in full at the rate you choose, so it spans "
-            f"{YAM_ACTION_HORIZON}/rate seconds."
+            "DreamZero-YAM requires exactly 30 Hz; dynamic rates are not "
+            "supported end to end"
         )
-    return float(resolved)
+    return YAM_CONTROL_HZ
 
 
 def _resolve_keep_warm(requested: int | None) -> int:
@@ -142,6 +136,7 @@ class DropbearPolicy(PolicyBase):
     timeout_s: float
     _episode_active: bool
     _closed: bool
+    _rate_warned: bool
     _atexit_handler: Callable[[], None]
 
     def __init__(
@@ -176,6 +171,7 @@ class DropbearPolicy(PolicyBase):
         self.startup_timeout_s = float(startup_timeout_s)
         self.timeout_s = timeout_s
         self._remote: Any | None = None
+        self._session_id: str | None = None
         self._episode_active = False
         self._closed = False
         self._trial_context: TrialContext | None = None
@@ -228,7 +224,13 @@ class DropbearPolicy(PolicyBase):
                 # instead of paying another cold start. Parked time is billed.
                 keep_warm=self.keep_warm_s,
             )
+            self._session_id = str(self._remote.session_id)
         return self._remote
+
+    @property
+    def session_id(self) -> str | None:
+        """The owned Dropbear session identity, retained after synchronous close."""
+        return self._session_id
 
     def _end_episode(self) -> None:
         if not self._episode_active:
@@ -271,6 +273,7 @@ class DropbearPolicy(PolicyBase):
             runtime = runtime_identity(remote)
             runtime["sampling"] = self.sampling
             runtime["commanded_control_hz"] = self.control_hz
+            runtime["capture_time_source"] = "embodiment_unix_epoch_seconds"
             # Recorded because a non-zero hold keeps billing after the run ends,
             # so a surprising invoice should be explicable from the sidecar.
             runtime["keep_warm_s"] = self.keep_warm_s
@@ -341,9 +344,8 @@ class DropbearPolicy(PolicyBase):
             f"stepping at about {observed:.1f} Hz but control_hz commands "
             f"{self.control_hz:g} Hz. Nothing enforces the rate here, so the "
             f"measured one is what the robot is doing and the commanded one is "
-            f"what the action scheduler is planning against. Either pass "
-            f"control_hz={round(observed)} to match the loop, or pace the "
-            f"embodiment at {self.control_hz:g} Hz.",
+            f"what the action scheduler is planning against. Pace the "
+            f"embodiment at the required {self.control_hz:g} Hz.",
             RuntimeWarning,
             stacklevel=3,
         )
