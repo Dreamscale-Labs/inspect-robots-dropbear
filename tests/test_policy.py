@@ -4,6 +4,7 @@ import threading
 import time
 import warnings
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -39,6 +40,7 @@ class FakeRemotePolicy:
         self,
         *,
         step_result: PolicyStepResult | None = None,
+        predict_result: object | None = None,
         begin_error: Exception | None = None,
         end_error: Exception | None = None,
     ) -> None:
@@ -46,6 +48,8 @@ class FakeRemotePolicy:
         self.end_calls = 0
         self.close_calls = 0
         self.step_result = step_result
+        self.predict_result = predict_result
+        self.predict_calls: list[tuple[str, float]] = []
         self.step_indices: list[int] = []
         self.step_timeouts: list[float] = []
         self.begin_error = begin_error
@@ -63,6 +67,12 @@ class FakeRemotePolicy:
 
     def close(self) -> None:
         self.close_calls += 1
+
+    def predict(self, observation: object, *, instruction: str, timeout_s: float) -> object:
+        del observation
+        self.predict_calls.append((instruction, timeout_s))
+        assert self.predict_result is not None
+        return self.predict_result
 
     def step(self, observation: object, *, action_index: int, timeout_s: float) -> PolicyStepResult:
         del observation
@@ -202,6 +212,45 @@ def test_custom_startup_timeout_does_not_change_per_step_timeout(monkeypatch) ->
 
     assert startup_timeouts == [2400.0]
     assert remote.step_timeouts == [17.0]
+
+
+def test_blocking_model_prediction_reuses_connection_without_starting_episode(
+    monkeypatch,
+) -> None:
+    result = SimpleNamespace(
+        actions=(tuple(float(i) for i in range(14)),),
+        action_indices=(0,),
+        chunk_id=7,
+        observation_id=11,
+    )
+    remote = FakeRemotePolicy(predict_result=result)
+    connect_calls = 0
+
+    def connect(*_args, **_kwargs) -> FakeRemotePolicy:
+        nonlocal connect_calls
+        connect_calls += 1
+        return remote
+
+    monkeypatch.setattr("inspect_robots_dropbear.policy.dropbear.connect", connect)
+    policy = dropbear_policy(model="dreamzero-yam", timeout_s=17.0)
+
+    action = policy.predict_model_action(
+        inspect_observation(env_step=0),
+        instruction="spell NEURIPS",
+    )
+    policy.reset(Scene(id="live", instruction="spell NEURIPS"))
+
+    assert connect_calls == 1
+    assert remote.predict_calls == [("spell NEURIPS", 17.0)]
+    assert remote.begin_calls == [("spell NEURIPS", "async_latest")]
+    assert np.array_equal(action.data, np.arange(14, dtype=np.float64))
+    assert action.meta == {
+        "dropbear_action_source": "model",
+        "dropbear_chunk_id": 7,
+        "dropbear_join_key": "predict:7:0",
+        "dropbear_observation_id": 11,
+        "dropbear_step": 0,
+    }
 
 
 @pytest.mark.parametrize(
