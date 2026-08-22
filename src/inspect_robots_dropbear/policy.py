@@ -253,6 +253,45 @@ class DropbearPolicy(PolicyBase):
         self._episode_active = True
         self._last_act_ns = None
 
+    def predict_model_action(
+        self,
+        observation: Observation,
+        *,
+        instruction: str,
+    ) -> Action:
+        """Return one blocking model action without starting an execution episode.
+
+        This is the non-commanding integration-check path. Unlike ``act()``, it
+        waits for a raw model chunk, so ``async_latest`` cannot turn the first
+        call into an expected hold. The connection is retained for a subsequent
+        ``reset()`` and live Inspect episode.
+        """
+        if self._episode_active:
+            raise RuntimeError(
+                "predict_model_action() must run before reset() starts an episode"
+            )
+        remote = self._ensure_connected()
+        result = remote.predict(
+            to_dreamzero_yam(observation),
+            instruction=instruction,
+            timeout_s=self.timeout_s,
+        )
+        if not result.actions:
+            raise RuntimeError("Dropbear returned an empty model action chunk")
+        action_indices = getattr(result, "action_indices", None)
+        action_index = int(action_indices[0]) if action_indices else 0
+        join_key = f"predict:{result.chunk_id}:{action_index}"
+        return Action(
+            data=np.asarray(result.actions[0], dtype=np.float64),
+            meta={
+                "dropbear_action_source": "model",
+                "dropbear_chunk_id": result.chunk_id,
+                "dropbear_join_key": join_key,
+                "dropbear_observation_id": result.observation_id,
+                "dropbear_step": action_index,
+            },
+        )
+
     def act(self, observation: Observation) -> ActionChunk:
         """Advance the externally clocked Dropbear episode by one Inspect step."""
         env_step = observation.extra.get("env_step")
