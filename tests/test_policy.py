@@ -182,6 +182,27 @@ def test_reset_passes_default_startup_timeout_to_dropbear_connect(monkeypatch) -
     assert startup_timeouts == [1800.0]
 
 
+def test_prepare_connects_once_without_starting_an_episode_or_inference(monkeypatch) -> None:
+    remote = FakeRemotePolicy()
+    connect_calls = 0
+
+    def connect(*_args: object, **_kwargs: object) -> FakeRemotePolicy:
+        nonlocal connect_calls
+        connect_calls += 1
+        return remote
+
+    monkeypatch.setattr("inspect_robots_dropbear.policy.dropbear.connect", connect)
+    policy = dropbear_policy(model="dreamzero-yam")
+
+    policy.prepare()
+    policy.prepare()
+
+    assert connect_calls == 1
+    assert policy.session_id == "session-123"
+    assert remote.begin_calls == []
+    assert remote.predict_calls == []
+
+
 def test_custom_startup_timeout_does_not_change_per_step_timeout(monkeypatch) -> None:
     """Catch startup and action-step deadlines being conflated at the SDK boundary."""
     remote = FakeRemotePolicy(step_result=step_result())

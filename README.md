@@ -67,12 +67,14 @@ loading and warmup. Set `-P startup_timeout_s=<seconds>` to another finite posit
 target needs a different startup budget. This does not change `timeout_s`, the existing
 per-step action deadline, which remains 60 seconds by default.
 
-For a non-commanding integration preflight, `predict_model_action(observation,
-instruction=...)` opens or reuses the lazy connection and blocks for one real model chunk without
-starting an execution episode. This distinction matters in `async_latest`: the first `act()` may
-correctly be a hold while inference is in flight, whereas the preflight method cannot pass until it
-has a model action. The caller must validate and discard that action; a later `reset()` reuses the
-same Dropbear connection for the live Inspect episode.
+For a non-commanding integration preflight, call `prepare()` first. It opens or reuses the lazy
+connection without starting an episode or inference, allowing a time-sensitive observation to be
+captured only after a cold worker is ready. Then `predict_model_action(observation,
+instruction=...)` blocks for one real model chunk without starting an execution episode. This
+distinction matters in `async_latest`: the first `act()` may correctly be a hold while inference is
+in flight, whereas the preflight method cannot pass until it has a model action. The caller must
+validate and discard that action; a later `reset()` reuses the same Dropbear connection for the live
+Inspect episode.
 
 ## Observation and simulator contract
 
