@@ -16,7 +16,6 @@ from inspect_robots.types import Observation
 _CAMERA_NAMES = ("top_cam", "left_cam", "right_cam")
 MAX_CAPTURE_AGE_S = 5.0
 MAX_CAPTURE_FUTURE_S = 1.0
-MAX_CAMERA_SKEW_S = 0.050
 dropbear: Any = _dropbear
 
 
@@ -38,7 +37,6 @@ def _seconds_to_ns(value: object, *, camera: str) -> int:
 def _capture_times_ns(observation: Observation) -> tuple[int, int, int]:
     """Validate source capture times before any inference request is possible."""
     now_s = time.time()
-    seconds: list[float] = []
     times_ns: list[int] = []
     for name in _CAMERA_NAMES:
         raw = _mapping_value(observation.image_times, name, field="image_times")
@@ -54,10 +52,7 @@ def _capture_times_ns(observation: Observation) -> tuple[int, int, int]:
                 f"image_times[{name!r}] is implausibly future; source capture time "
                 f"must not exceed wall clock by more than {MAX_CAPTURE_FUTURE_S:g} second"
             )
-        seconds.append(capture_s)
         times_ns.append(converted)
-    if max(seconds) - min(seconds) > MAX_CAMERA_SKEW_S:
-        raise ValueError("camera skew exceeds the 50 ms DreamZero-YAM limit")
     return cast(tuple[int, int, int], tuple(times_ns))
 
 

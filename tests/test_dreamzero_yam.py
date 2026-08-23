@@ -124,8 +124,8 @@ def test_to_dreamzero_yam_rejects_invalid_camera_time(value: object) -> None:
         to_dreamzero_yam(observation)
 
 
-def test_to_dreamzero_yam_rejects_camera_skew_over_fifty_ms() -> None:
-    """Catch a mapping that sends an incoherent camera triplet to DreamZero-YAM."""
+def test_to_dreamzero_yam_accepts_cross_camera_skew_without_rewriting_times() -> None:
+    """Free-running camera spread is observable metadata, not an adapter rejection gate."""
     observation = valid_observation()
     observation = Observation(
         images=observation.images,
@@ -133,12 +133,17 @@ def test_to_dreamzero_yam_rejects_camera_skew_over_fifty_ms() -> None:
         image_times={
             "top_cam": CAPTURE_EPOCH_S,
             "left_cam": CAPTURE_EPOCH_S + 0.001,
-            "right_cam": CAPTURE_EPOCH_S + 0.051,
+            "right_cam": CAPTURE_EPOCH_S + 0.200,
         },
     )
 
-    with pytest.raises(ValueError, match="camera skew exceeds the 50 ms DreamZero-YAM limit"):
-        to_dreamzero_yam(observation)
+    mapped = to_dreamzero_yam(observation)
+
+    assert mapped.camera_capture_times_ns == (
+        round(CAPTURE_EPOCH_S * 1_000_000_000),
+        round((CAPTURE_EPOCH_S + 0.001) * 1_000_000_000),
+        round((CAPTURE_EPOCH_S + 0.200) * 1_000_000_000),
+    )
 
 
 def test_to_dreamzero_yam_rejects_stale_camera_time() -> None:
