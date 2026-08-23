@@ -326,7 +326,7 @@ wheels = [
 
 [[package]]
 name = "dropbear"
-version = "0.1.0a12"
+version = "0.1.0a13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dropbear-transport" },
@@ -339,9 +339,9 @@ dependencies = [
     { name = "typer" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/63/89/a9acd729f23a9f678cd4fcad8d95d298eaf306093a26ad13f485217043bd/dropbear-0.1.0a12.tar.gz", hash = "sha256:95a655ab10f9009447b0f0fd76f9989e5336bac5e315aeb3fff73010ecc272b3", size = 159151, upload-time = "2026-08-23T08:37:05.481Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/71/70d3a639323199c70ae4cf325c71c5ad3f9e0eae7c00374ed167ec5c504b/dropbear-0.1.0a13.tar.gz", hash = "sha256:162f31214d7c294ec009e498161cffada45312952f15c5f04c3ab1dea9d1ab5c", size = 159252, upload-time = "2026-08-23T09:10:22.7Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/14/3f/67b5da8c2842e5e771ee08da06894f46fc604f1c0428e99e41299f83bee3/dropbear-0.1.0a12-py3-none-any.whl", hash = "sha256:a57e3406cb203a3dc6af24827f9c847894163419c3ffdfda53db6c8dea695ead", size = 181282, upload-time = "2026-08-23T08:37:03.942Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/5d/df031970ebdabbd5be712da681f475c88db362a34495d918d6d043447cd0/dropbear-0.1.0a13-py3-none-any.whl", hash = "sha256:4aa46f429312dc3ba5c6872d68e7f4f92d0b11728a05892ac5af11cb2fce428d", size = 181328, upload-time = "2026-08-23T09:10:21.12Z" },
 ]
 
 [package.optional-dependencies]
@@ -437,7 +437,7 @@ wheels = [
 
 [[package]]
 name = "inspect-robots-dropbear"
-version = "0.1.15"
+version = "0.1.16"
 source = { editable = "." }
 dependencies = [
     { name = "dropbear", extra = ["dreamzero"] },
@@ -455,7 +455,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dropbear", extras = ["dreamzero"], specifier = "==0.1.0a12" },
+    { name = "dropbear", extras = ["dreamzero"], specifier = "==0.1.0a13" },
     { name = "inspect-robots", specifier = ">=0.53.1,<0.54" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
     { name = "numpy", specifier = ">=2.0,<3" },
