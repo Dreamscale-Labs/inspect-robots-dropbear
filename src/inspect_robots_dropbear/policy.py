@@ -232,6 +232,15 @@ class DropbearPolicy(PolicyBase):
         """The owned Dropbear session identity, retained after synchronous close."""
         return self._session_id
 
+    def prepare(self) -> None:
+        """Start or reclaim compute without beginning an episode or inference.
+
+        Callers that must acquire time-sensitive observations can prepare the
+        potentially slow remote session first, then capture immediately before
+        sending an observation. Repeated calls reuse the same connection.
+        """
+        self._ensure_connected()
+
     def _end_episode(self) -> None:
         if not self._episode_active:
             return
