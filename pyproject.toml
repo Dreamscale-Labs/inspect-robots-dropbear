@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "inspect-robots-dropbear"
-version = "0.1.12"
+version = "0.1.13"
 description = "Inspect Robots policy adapter for Dropbear-hosted DreamZero-YAM"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
 dependencies = [
-  "dropbear[dreamzero]==0.1.0a10",
+  "dropbear[dreamzero]==0.1.0a11",
   # PyPI refuses direct references in uploaded distributions, and the pinned
   # commit is one commit past the 0.53.1 release, so depend on the release.
   "inspect-robots>=0.53.1,<0.54",
