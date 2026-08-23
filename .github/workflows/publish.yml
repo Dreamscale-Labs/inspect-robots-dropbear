@@ -47,7 +47,7 @@ jobs:
 
       - run: uv build
       - run: uvx --from twine twine check dist/*
-      - run: uv run --no-project --with pytest --with . pytest -q
+      - run: UV_PRERELEASE=allow uv run --no-project --with pytest --with . pytest -q
       - uses: actions/upload-artifact@v4
         with:
           name: dist
