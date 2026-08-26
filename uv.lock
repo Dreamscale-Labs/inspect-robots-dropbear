@@ -326,8 +326,8 @@ wheels = [
 
 [[package]]
 name = "dropbear"
-version = "0.1.0a13"
-source = { registry = "https://pypi.org/simple" }
+version = "0.1.0a14"
+source = { registry = "/tmp/dropbear-a14-build.aWqHeD" }
 dependencies = [
     { name = "dropbear-transport" },
     { name = "httpx" },
@@ -339,9 +339,9 @@ dependencies = [
     { name = "typer" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6e/71/70d3a639323199c70ae4cf325c71c5ad3f9e0eae7c00374ed167ec5c504b/dropbear-0.1.0a13.tar.gz", hash = "sha256:162f31214d7c294ec009e498161cffada45312952f15c5f04c3ab1dea9d1ab5c", size = 159252, upload-time = "2026-08-23T09:10:22.7Z" }
+sdist = { path = "/tmp/dropbear-a14-build.aWqHeD/dropbear-0.1.0a14.tar.gz" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9f/5d/df031970ebdabbd5be712da681f475c88db362a34495d918d6d043447cd0/dropbear-0.1.0a13-py3-none-any.whl", hash = "sha256:4aa46f429312dc3ba5c6872d68e7f4f92d0b11728a05892ac5af11cb2fce428d", size = 181328, upload-time = "2026-08-23T09:10:21.12Z" },
+    { path = "/tmp/dropbear-a14-build.aWqHeD/dropbear-0.1.0a14-py3-none-any.whl" },
 ]
 
 [package.optional-dependencies]
@@ -437,7 +437,7 @@ wheels = [
 
 [[package]]
 name = "inspect-robots-dropbear"
-version = "0.1.16"
+version = "0.1.17"
 source = { editable = "." }
 dependencies = [
     { name = "dropbear", extra = ["dreamzero"] },
@@ -455,7 +455,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dropbear", extras = ["dreamzero"], specifier = "==0.1.0a13" },
+    { name = "dropbear", extras = ["dreamzero"], specifier = "==0.1.0a14" },
     { name = "inspect-robots", specifier = ">=0.53.1,<0.54" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
     { name = "numpy", specifier = ">=2.0,<3" },
