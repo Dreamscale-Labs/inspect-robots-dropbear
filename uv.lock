@@ -327,7 +327,7 @@ wheels = [
 [[package]]
 name = "dropbear"
 version = "0.1.0a14"
-source = { registry = "/tmp/dropbear-a14-build.aWqHeD" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dropbear-transport" },
     { name = "httpx" },
@@ -339,9 +339,9 @@ dependencies = [
     { name = "typer" },
     { name = "typing-extensions" },
 ]
-sdist = { path = "/tmp/dropbear-a14-build.aWqHeD/dropbear-0.1.0a14.tar.gz" }
+sdist = { url = "https://files.pythonhosted.org/packages/eb/2e/edeae1e3dea9d7bb5c44c87713dd8eb3a8ba3b8fe9ab2bf1f7a33e615143/dropbear-0.1.0a14.tar.gz", hash = "sha256:8359355d51028ff007e0b72f71f7ea4dc6b4347710c4ecbb28df1e4aaa3c93da", size = 160223, upload-time = "2026-08-29T07:40:03.574Z" }
 wheels = [
-    { path = "/tmp/dropbear-a14-build.aWqHeD/dropbear-0.1.0a14-py3-none-any.whl" },
+    { url = "https://files.pythonhosted.org/packages/bf/bc/94df8202c9906ba3705a5c8582916245e0f2ab63a3a43c913182d47d8530/dropbear-0.1.0a14-py3-none-any.whl", hash = "sha256:02fbae6a758cbd908ebe3aa369af968254021196bc29c596ec96dbab901d59b1", size = 182296, upload-time = "2026-08-29T07:40:01.868Z" },
 ]
 
 [package.optional-dependencies]
